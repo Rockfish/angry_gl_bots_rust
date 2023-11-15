@@ -10,6 +10,7 @@ mod capsule;
 mod enemy;
 mod geom;
 mod sprite_sheet;
+mod bullet_store;
 
 extern crate glfw;
 
@@ -28,6 +29,7 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::f32::consts::PI;
 use small_gl_core::gl::{GLsizei, GLsizeiptr, GLuint, GLvoid};
+use crate::bullet_store::BulletStore;
 use crate::sprite_sheet::SpriteSheet;
 
 const SCR_WIDTH: f32 = 1000.0;
@@ -83,16 +85,19 @@ const floorNonBlue: f32 = 0.7;
 // Enemies
 const monsterSpeed: f32 = 0.6;
 
+#[rustfmt::skip]
 const unitSquare: [f32; 30] = [
     -1.0, -1.0, 0.0, 0.0, 0.0, 1.0, -1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0, -1.0, -1.0, 0.0,
     0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0, -1.0, 1.0, 0.0, 0.0, 1.0,
 ];
 
+#[rustfmt::skip]
 const moreObnoxiousQuad: [f32; 30] = [
     -1.0, -1.0, -0.9, 0.0, 0.0, 1.0, -1.0, -0.9, 1.0, 0.0, 1.0, 1.0, -0.9, 1.0, 1.0, -1.0, -1.0,
     -0.9, 0.0, 0.0, 1.0, 1.0, -0.9, 1.0, 1.0, -1.0, 1.0, -0.9, 0.0, 1.0,
 ];
 
+#[rustfmt::skip]
 const obnoxiousQuad: [f32; 30] = [
     0.5, 0.5, -0.9, 0.0, 0.0, 1.0, 0.5, -0.9, 1.0, 0.0, 1.0, 1.0, -0.9, 1.0, 1.0, 0.5, 0.5, -0.9,
     0.0, 0.0, 1.0, 1.0, -0.9, 1.0, 1.0, 0.5, 1.0, -0.9, 0.0, 1.0,
@@ -243,35 +248,32 @@ fn main() {
 
     println!("Loading assets");
 
-    let blurShader = Shader::new("angrygl/basicer_shader.vert", "angrygl/blur_shader.frag").unwrap();
-    let basicerShader = Shader::new("angrygl/basicer_shader.vert", "angrygl/basicer_shader.frag").unwrap();
-    let sceneDrawShader = Shader::new("angrygl/basicer_shader.vert", "angrygl/texture_merge_shader.frag").unwrap();
-    let simpleDepthShader = Shader::new("angrygl/depth_shader.vert", "angrygl/depth_shader.frag").unwrap();
+    let blurShader = Shader::new("assets/shaders/basicer_shader.vert", "assets/shaders/blur_shader.frag").unwrap();
+    let basicerShader = Shader::new("assets/shaders/basicer_shader.vert", "assets/shaders/basicer_shader.frag").unwrap();
+    let sceneDrawShader = Shader::new("assets/shaders/basicer_shader.vert", "assets/shaders/texture_merge_shader.frag").unwrap();
+    let simpleDepthShader = Shader::new("assets/shaders/depth_shader.vert", "assets/shaders/depth_shader.frag").unwrap();
 
     simpleDepthShader.use_shader();
     let lsml = simpleDepthShader.get_uniform_location("lightSpaceMatrix");
 
-    let playerShader = Shader::new("angrygl/player_shader.vert", "angrygl/player_shader.frag").unwrap();
+    let playerShader = Shader::new("assets/shaders/player_shader.vert", "assets/shaders/player_shader.frag").unwrap();
     playerShader.use_shader();
 
     let playerLightSpaceMatrixLocation = playerShader.get_uniform_location( "lightSpaceMatrix");
-    playerShader.setVec3("directionLight.dir", playerLightDir);
-    playerShader.setVec3("directionLight.color", lightColor);
-    playerShader.setVec3("ambient", ambientColor);
-    playerShader.setInt("texture_spec", texUnit_playerSpec);
+    playerShader.set_vec3("directionLight.dir", &playerLightDir);
+    playerShader.set_vec3("directionLight.color", &lightColor);
+    playerShader.set_vec3("ambient", &ambientColor);
+    playerShader.set_int("texture_spec", texUnit_playerSpec);
 
     // logTimeSince("shaders loaded ", appStart);
 
     let bulletImpactSpritesheet = SpriteSheet::new(texUnit_impactSpriteSheet, 11, 0.05);
     let muzzleFlashImpactSpritesheet = SpriteSheet::new(texUnit_muzzleFlashSpriteSheet, 6, 0.05);
 
-    BulletStore bulletStore = BulletStore::initialiseBuffersAndCreate(&threadPool);
+    let bulletStore = BulletStore::initialize_buffer_and_create(); // &threadPool);
 
-
-
-    let wigglyShader = Shader::new("assets/shaders/wiggly_shader.vert", "assets/shaders/player_shader.frag", None::<String>).unwrap();
+    let wigglyShader = Shader::new("assets/shaders/wiggly_shader.vert", "assets/shaders/player_shader.frag").unwrap();
     let wigglyBoi = ModelBuilder::new("wigglyBoi", Rc::new(wigglyShader), "assets/models/eel_dog/EelDog.FBX");
-
 
     // render loop
     while !window.should_close() {
