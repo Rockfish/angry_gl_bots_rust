@@ -11,6 +11,8 @@ mod enemy;
 mod geom;
 mod sprite_sheet;
 mod bullet_store;
+mod floor;
+mod texture_cache;
 
 extern crate glfw;
 
@@ -20,17 +22,20 @@ use glam::{vec2, vec3, Mat4, Vec3, Vec2};
 use glfw::{Action, Context, Key};
 use log::error;
 use small_gl_core::camera::{Camera, CameraMovement};
-use small_gl_core::{gl, SIZE_OF_FLOAT};
+use small_gl_core::{gl, null, SIZE_OF_FLOAT};
 use small_gl_core::mesh::{Color, Mesh};
 use small_gl_core::model::{Model, ModelBuilder};
 use small_gl_core::shader::Shader;
-use small_gl_core::texture::{Texture, TextureConfig, TextureFilter, TextureType};
+use small_gl_core::texture::{Texture, TextureConfig, TextureFilter, TextureType, TextureWrap};
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::f32::consts::PI;
-use small_gl_core::gl::{GLsizei, GLsizeiptr, GLuint, GLvoid};
+use small_gl_core::error::Error;
+use small_gl_core::gl::{GLint, GLsizei, GLsizeiptr, GLuint, GLvoid};
 use crate::bullet_store::BulletStore;
+use crate::floor::{Floor, set_texture};
 use crate::sprite_sheet::SpriteSheet;
+use crate::texture_cache::TextureCache;
 
 const SCR_WIDTH: f32 = 1000.0;
 const SCR_HEIGHT: f32 = 800.0;
@@ -175,7 +180,7 @@ fn main() {
     // perspective setting
     let camera = Camera::camera_vec3_up_yaw_pitch(
         // vec3(400.0, 400.0, 700.0), for current x,y world
-        vec3(0.0, 170.0, 500.0), // for xz world
+        vec3(0.0, 70.0, 50.0), // for xz world
         vec3(0.0, 1.0, 0.0),
         -90.0, // seems camera starts by looking down the x-axis, so needs to turn left to see the plane
         -20.0,
@@ -240,7 +245,7 @@ fn main() {
         gl::BindVertexArray(moreObnoxiousQuadVAO);
         gl::BindBuffer(gl::ARRAY_BUFFER, moreObnoxiousQuadVBO);
         gl::BufferData(gl::ARRAY_BUFFER, (moreObnoxiousQuad.len() * SIZE_OF_FLOAT) as GLsizeiptr, moreObnoxiousQuad.as_ptr() as *const GLvoid, gl::STATIC_DRAW);
-        gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, std::ptr::null::<GLvoid>());
+        gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, null!());
         gl::EnableVertexAttribArray(0);
         gl::VertexAttribPointer(1, 2, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, (3 * SIZE_OF_FLOAT) as *const GLvoid);
         gl::EnableVertexAttribArray(1);
@@ -248,15 +253,18 @@ fn main() {
 
     println!("Loading assets");
 
-    let blurShader = Shader::new("assets/shaders/basicer_shader.vert", "assets/shaders/blur_shader.frag").unwrap();
-    let basicerShader = Shader::new("assets/shaders/basicer_shader.vert", "assets/shaders/basicer_shader.frag").unwrap();
-    let sceneDrawShader = Shader::new("assets/shaders/basicer_shader.vert", "assets/shaders/texture_merge_shader.frag").unwrap();
-    let simpleDepthShader = Shader::new("assets/shaders/depth_shader.vert", "assets/shaders/depth_shader.frag").unwrap();
+    let basicerShader = Shader::new("shaders/basicer_shader.vert", "shaders/basicer_shader.frag").unwrap();
+    let basicTextureShader = Rc::new(Shader::new("shaders/basic_texture_shader.vert", "shaders/basic_texture_shader.frag").unwrap());
+    let blurShader = Shader::new("shaders/basicer_shader.vert", "shaders/blur_shader.frag").unwrap();
+    let sceneDrawShader = Shader::new("shaders/basicer_shader.vert", "shaders/texture_merge_shader.frag").unwrap();
+    let simpleDepthShader = Shader::new("shaders/depth_shader.vert", "shaders/depth_shader.frag").unwrap();
+    let playerShader = Rc::new(Shader::new("shaders/player_shader.vert", "shaders/player_shader.frag").unwrap());
+    let wigglyShader = Shader::new("shaders/wiggly_shader.vert", "shaders/player_shader.frag").unwrap();
+    let textureShader = Rc::new(Shader::new("shaders/geom_shader.vert", "shaders/texture_shader.frag").unwrap());
 
     simpleDepthShader.use_shader();
     let lsml = simpleDepthShader.get_uniform_location("lightSpaceMatrix");
 
-    let playerShader = Shader::new("assets/shaders/player_shader.vert", "assets/shaders/player_shader.frag").unwrap();
     playerShader.use_shader();
 
     let playerLightSpaceMatrixLocation = playerShader.get_uniform_location( "lightSpaceMatrix");
@@ -265,16 +273,69 @@ fn main() {
     playerShader.set_vec3("ambient", &ambientColor);
     playerShader.set_int("texture_spec", texUnit_playerSpec);
 
+    // let wigglyBoi = ModelBuilder::new("wigglyBoi", Rc::new(wigglyShader), "assets/Models/Eeldog/EelDog.FBX").build().unwrap();
+
+    // player model textures handled externally
+    let player_model = ModelBuilder::new("player", Rc::new(simpleDepthShader), "assets/Models/Player/Player.fbx").build().unwrap();
+
     // logTimeSince("shaders loaded ", appStart);
 
     let bulletImpactSpritesheet = SpriteSheet::new(texUnit_impactSpriteSheet, 11, 0.05);
     let muzzleFlashImpactSpritesheet = SpriteSheet::new(texUnit_muzzleFlashSpriteSheet, 6, 0.05);
-
     let bulletStore = BulletStore::initialize_buffer_and_create(); // &threadPool);
 
-    let wigglyShader = Shader::new("assets/shaders/wiggly_shader.vert", "assets/shaders/player_shader.frag").unwrap();
-    let wigglyBoi = ModelBuilder::new("wigglyBoi", Rc::new(wigglyShader), "assets/models/eel_dog/EelDog.FBX");
+    let textures_to_load = [
+        // from angrygl
+        (texUnit_impactSpriteSheet, "angrygl_assets/bullet/impact_spritesheet_with_00.png"),
+        (texUnit_muzzleFlashSpriteSheet, "angrygl_assets/Player/muzzle_spritesheet.png"),
+        //(texUnit_bullet, "angrygl_assets/bullet/BulletTexture2.png"), todo: need to create this one. view video for details
 
+        // from Unity
+        (texUnit_bullet, "assets/Models/Bullet/Textures/BulletTexture.png"), // using this temporarily to get code right
+        (texUnit_wigglyBoi, "assets/Models/Eeldog/Eeldog_Green_Albedo.png"),
+        (texUnit_floorNormal, "assets/Models/Floor N.png"),
+        (texUnit_floorDiffuse, "assets/Models/Floor D.png"),
+        (texUnit_floorSpec, "assets/Models/Floor M.png"),
+        (texUnit_gunNormal, "assets/Models/Player/Textures/Gun_NRM.tga"),
+        (texUnit_playerNormal, "assets/Models/Player/Textures/Player_NRM.tga"),
+        (texUnit_gunDiffuse, "assets/Models/Player/Textures/Gun_D.tga"),
+        (texUnit_playerEmission, "assets/Models/Player/Textures/Player_E.tga"),
+        (texUnit_playerSpec, "assets/Models/Player/Textures/Player_M.tga"),
+        (texUnit_gunEmission, "assets/Models/Player/Textures/Gun_E.tga"),
+        (texUnit_playerDiffuse, "assets/Models/Player/Textures/Player_D.tga"),
+        (texUnit_gunSpec, "assets/Models/Player/Textures/Gun_M.tga"),
+    ];
+    
+    let texture_config = TextureConfig {
+        flip_v: false,
+        gamma_correction: false,
+        filter: TextureFilter::Linear,
+        texture_type: TextureType::None,
+        wrap: TextureWrap::Repeat,
+    };
+
+
+    let mut texture_cache = TextureCache::new();
+
+    for texture_spec in textures_to_load {
+        let texture = texture_cache.get_or_load_texture(texture_spec.1, &texture_config);
+        match texture {
+            Ok(_) => println!("Loaded: {}", texture_spec.1),
+            Err(e) => println!("Error loading: {} {}", texture_spec.1, e),
+        }
+    }
+
+    let playerSpec_texture = texture_cache.get_or_load_texture("assets/Models/Player/Textures/Player_M.tga", &texture_config).unwrap();
+    let playerDiffuse_texture = texture_cache.get_or_load_texture("assets/Models/Player/Textures/Player_D.tga", &texture_config).unwrap();
+    let playerNormal_texture = texture_cache.get_or_load_texture("assets/Models/Player/Textures/Player_NRM.tga", &texture_config).unwrap();
+    let playerEmission_texture = texture_cache.get_or_load_texture("assets/Models/Player/Textures/Player_E.tga", &texture_config).unwrap();
+
+
+    let floor = Floor::new(&mut texture_cache, &basicTextureShader);
+
+
+
+    println!("Assets loaded. Starting loop.");
     // render loop
     while !window.should_close() {
         let current_time = glfw.get_time() as f32;
@@ -298,6 +359,42 @@ fn main() {
             0.1,
             2000.0,
         );
+
+        let camera_position = state.player.playerPosition + cameraFollowVec.clone();
+
+        // let view = Mat4::look_at_rh(camera_position, state.player.playerPosition, state.camera.up);
+
+        let projection_view = projection * view;
+
+        floor.draw(&projection_view, &ambientColor);
+
+
+        // let dx = worldX - state.player.playerPosition.x;
+        // let dz = worldZ - state.player.playerPosition.z;
+        // let aimTheta = (dx / dz).atan() + if dz < 0.0 { PI } else { 0.0 };
+        let aimTheta = 0.0;
+
+        let mut player_model_transform = Mat4::from_translation(state.player.playerPosition);
+        //player_model_transform *= Mat4::from_scale(Vec3::splat(playerModelScale));
+        player_model_transform *= Mat4::from_scale(Vec3::splat(0.5));
+        player_model_transform *= Mat4::from_axis_angle(vec3(0.0, 1.0, 0.0), aimTheta);
+
+        playerShader.use_shader();
+        playerShader.set_vec3("viewPos", &camera_position);
+        playerShader.set_mat4("model", &player_model_transform);
+        playerShader.set_mat4("aimRot", &Mat4::IDENTITY);
+        playerShader.set_mat4("PV", &projection_view);
+        playerShader.set_bool("useLight", false);
+        playerShader.set_vec3("ambient", &ambientColor);
+        // playerNormal_texture
+        // playerEmission_texture
+        set_texture(&playerShader, 0, "texture_spec", &playerSpec_texture);
+        set_texture(&playerShader, 1, "texture_diffuse", &playerDiffuse_texture);
+
+
+
+
+        player_model.render_with_shader(&playerShader);
 
         window.swap_buffers();
     }
@@ -409,7 +506,7 @@ fn drawWigglyBois(wigglyBoi: &Model, state: &mut State) {
     wigglyBoi.shader.use_shader();
     wigglyBoi.shader.set_vec3("nosePos", &vec3(1.0, monsterY, -2.0));
 
-    // TODO optimise (multithread, instancing, SOA, etc..)
+    // TODO optimise (multithreaded, instancing, SOA, etc..)
     for e in state.enemies.iter_mut() {
         let monsterTheta = (e.dir.x / e.dir.z).atan() + (if e.dir.z < 0.0 { 0.0 } else { PI });
 
@@ -428,4 +525,30 @@ fn drawWigglyBois(wigglyBoi: &Model, state: &mut State) {
 
         wigglyBoi.render();
     }
+}
+
+fn setup_depth_map() -> GLuint {
+    let mut depthMapFBO: GLuint = 0;
+    let mut depthMap: GLuint = 0;
+    unsafe {
+        // gl::ActiveTexture(gl::TEXTURE0 + texUnit_shadowMap);
+        gl::GenFramebuffers(1, &mut depthMapFBO);
+        let SHADOW_WIDTH = 6 * 1024;
+        let SHADOW_HEIGHT = 6 * 1024;
+        gl::GenTextures(1, &mut depthMap);
+        gl::BindTexture(gl::TEXTURE_2D, depthMap);
+        gl::TexImage2D(gl::TEXTURE_2D, 0, gl::DEPTH_COMPONENT as GLint, SHADOW_WIDTH, SHADOW_HEIGHT, 0, gl::DEPTH_COMPONENT, gl::FLOAT, null!());
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as GLint);
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as GLint);
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_BORDER as GLint);
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_BORDER as GLint);
+        let borderColor = [1.0f32, 1.0f32, 1.0f32, 1.0f32 ];
+        gl::TexParameterfv(gl::TEXTURE_2D, gl::TEXTURE_BORDER_COLOR, borderColor.as_ptr());
+        gl::BindFramebuffer(gl::FRAMEBUFFER, depthMapFBO);
+        gl::FramebufferTexture2D(gl::FRAMEBUFFER, gl::DEPTH_ATTACHMENT, gl::TEXTURE_2D, depthMap, 0);
+        gl::DrawBuffer(gl::NONE);
+        gl::ReadBuffer(gl::NONE);
+        gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
+    }
+    depthMapFBO
 }
