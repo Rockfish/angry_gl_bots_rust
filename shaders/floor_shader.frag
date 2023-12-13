@@ -20,7 +20,7 @@ uniform bool usePointLight;
 
 uniform sampler2D texture_diffuse;
 uniform sampler2D texture_normal;
-uniform sampler2D texture_spec;
+uniform sampler2D texture_specular;
 uniform bool useLight;
 uniform bool useSpec;
 uniform vec3 ambient;
@@ -64,7 +64,7 @@ void main() {
       float shininess = 0.7;
       float str = 1;//0.88;
       float spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
-      color += str * spec * texture(texture_spec, TexCoord) * vec4(directionLight.color, 1.0);
+      color += str * spec * texture(texture_specular, TexCoord) * vec4(directionLight.color, 1.0);
     }
     if (usePointLight) {
       vec3 lightDir = normalize(pointLight.worldPos - FragWorldPos);

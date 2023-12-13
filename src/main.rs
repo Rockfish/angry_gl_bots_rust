@@ -13,29 +13,33 @@ mod sprite_sheet;
 mod bullet_store;
 mod floor;
 mod texture_cache;
+mod quads;
+mod depth_map;
+mod wiggly_bois;
+mod enemies;
+mod player;
 
 extern crate glfw;
 
-use crate::enemy::{Enemy, ENEMY_COLLIDER};
+use crate::enemy::{chase_player, Enemy, ENEMY_COLLIDER, EnemySpawner};
 use crate::geom::distanceBetweenPointAndLineSegment;
 use glam::{vec2, vec3, Mat4, Vec3, Vec2};
 use glfw::{Action, Context, Key};
 use log::error;
 use small_gl_core::camera::{Camera, CameraMovement};
-use small_gl_core::{gl, null, SIZE_OF_FLOAT};
-use small_gl_core::mesh::{Color, Mesh};
-use small_gl_core::model::{Model, ModelBuilder};
+use small_gl_core::gl;
+use small_gl_core::model::ModelBuilder;
 use small_gl_core::shader::Shader;
-use small_gl_core::texture::{Texture, TextureConfig, TextureFilter, TextureType, TextureWrap};
-use std::path::PathBuf;
+use small_gl_core::texture::{TextureConfig, TextureType, TextureWrap};
 use std::rc::Rc;
-use std::f32::consts::PI;
-use small_gl_core::error::Error;
-use small_gl_core::gl::{GLint, GLsizei, GLsizeiptr, GLuint, GLvoid};
+use std::time::Duration;
+use small_gl_core::animator::{AnimationClip, AnimationRepeat};
 use crate::bullet_store::BulletStore;
-use crate::floor::{Floor, set_texture};
+use crate::floor::Floor;
+use crate::player::Player;
 use crate::sprite_sheet::SpriteSheet;
 use crate::texture_cache::TextureCache;
+use crate::wiggly_bois::draw_wiggly_bois;
 
 const SCR_WIDTH: f32 = 1000.0;
 const SCR_HEIGHT: f32 = 800.0;
@@ -90,32 +94,8 @@ const floorNonBlue: f32 = 0.7;
 // Enemies
 const monsterSpeed: f32 = 0.6;
 
-#[rustfmt::skip]
-const unitSquare: [f32; 30] = [
-    -1.0, -1.0, 0.0, 0.0, 0.0, 1.0, -1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0, -1.0, -1.0, 0.0,
-    0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0, -1.0, 1.0, 0.0, 0.0, 1.0,
-];
 
-#[rustfmt::skip]
-const moreObnoxiousQuad: [f32; 30] = [
-    -1.0, -1.0, -0.9, 0.0, 0.0, 1.0, -1.0, -0.9, 1.0, 0.0, 1.0, 1.0, -0.9, 1.0, 1.0, -1.0, -1.0,
-    -0.9, 0.0, 0.0, 1.0, 1.0, -0.9, 1.0, 1.0, -1.0, 1.0, -0.9, 0.0, 1.0,
-];
 
-#[rustfmt::skip]
-const obnoxiousQuad: [f32; 30] = [
-    0.5, 0.5, -0.9, 0.0, 0.0, 1.0, 0.5, -0.9, 1.0, 0.0, 1.0, 1.0, -0.9, 1.0, 1.0, 0.5, 0.5, -0.9,
-    0.0, 0.0, 1.0, 1.0, -0.9, 1.0, 1.0, 0.5, 1.0, -0.9, 0.0, 1.0,
-];
-
-struct Player {
-    lastFireTime: f32,
-    isTryingToFire: bool,
-    isAlive: bool,
-    aimTheta: f32,
-    playerPosition: Vec3,
-    playerMovementDir: Vec2,
-}
 
 struct State {
     camera: Camera,
@@ -180,7 +160,7 @@ fn main() {
     // perspective setting
     let camera = Camera::camera_vec3_up_yaw_pitch(
         // vec3(400.0, 400.0, 700.0), for current x,y world
-        vec3(0.0, 70.0, 50.0), // for xz world
+        vec3(0.0, 20.0, 50.0), // for xz world
         vec3(0.0, 1.0, 0.0),
         -90.0, // seems camera starts by looking down the x-axis, so needs to turn left to see the plane
         -20.0,
@@ -192,8 +172,9 @@ fn main() {
         isTryingToFire: false,
         isAlive: true,
         aimTheta: 0.0f32,
-        playerPosition: vec3(0.0, 0.0, 0.0),
-        playerMovementDir: vec2(0.0, 0.0),
+        position: vec3(0.0, 0.0, 0.0),
+        movementDir: vec2(0.0, 0.0),
+        animation_name: "".to_string(),
     };
 
     let mut state = State {
@@ -207,59 +188,16 @@ fn main() {
         enemies: vec![],
     };
 
-
-    unsafe {
-        gl::Enable(gl::DEPTH_TEST);
-        gl::Enable(gl::BLEND);
-        gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
-
-        let mut obnoxiousQuadVAO: GLuint = 0;
-        let mut obnoxiousQuadVBO: GLuint = 0;
-        gl::GenVertexArrays(1, &mut obnoxiousQuadVAO);
-        gl::GenBuffers(1, &mut obnoxiousQuadVBO);
-        gl::BindVertexArray(obnoxiousQuadVAO);
-        gl::BindBuffer(gl::ARRAY_BUFFER, obnoxiousQuadVBO);
-        gl::BufferData(gl::ARRAY_BUFFER, (obnoxiousQuad.len() * SIZE_OF_FLOAT) as GLsizeiptr, obnoxiousQuad.as_ptr() as *const GLvoid, gl::STATIC_DRAW);
-        gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, std::ptr::null::<GLvoid>());
-        gl::EnableVertexAttribArray(0);
-        gl::VertexAttribPointer(1, 2, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, (3 * SIZE_OF_FLOAT) as *const GLvoid);
-        gl::EnableVertexAttribArray(1);
-
-
-        let mut unitSquareVAO: GLuint = 0;
-        let mut unitSquareVBO: GLuint = 0;
-        gl::GenVertexArrays(1, &mut unitSquareVAO);
-        gl::GenBuffers(1, &mut unitSquareVBO);
-        gl::BindVertexArray(unitSquareVAO);
-        gl::BindBuffer(gl::ARRAY_BUFFER, unitSquareVBO);
-        gl::BufferData(gl::ARRAY_BUFFER, (unitSquare.len() * SIZE_OF_FLOAT) as GLsizeiptr, unitSquare.as_ptr() as *const GLvoid, gl::STATIC_DRAW);
-        gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, std::ptr::null::<GLvoid>());
-        gl::EnableVertexAttribArray(0);
-        gl::VertexAttribPointer(1, 2, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, (3 * SIZE_OF_FLOAT) as *const GLvoid);
-        gl::EnableVertexAttribArray(1);
-
-        let mut moreObnoxiousQuadVAO: GLuint = 0;
-        let mut moreObnoxiousQuadVBO: GLuint = 0;
-        gl::GenVertexArrays(1, &mut moreObnoxiousQuadVAO);
-        gl::GenBuffers(1, &mut moreObnoxiousQuadVBO);
-        gl::BindVertexArray(moreObnoxiousQuadVAO);
-        gl::BindBuffer(gl::ARRAY_BUFFER, moreObnoxiousQuadVBO);
-        gl::BufferData(gl::ARRAY_BUFFER, (moreObnoxiousQuad.len() * SIZE_OF_FLOAT) as GLsizeiptr, moreObnoxiousQuad.as_ptr() as *const GLvoid, gl::STATIC_DRAW);
-        gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, null!());
-        gl::EnableVertexAttribArray(0);
-        gl::VertexAttribPointer(1, 2, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, (3 * SIZE_OF_FLOAT) as *const GLvoid);
-        gl::EnableVertexAttribArray(1);
-    }
-
     println!("Loading assets");
+
+    let playerShader = Rc::new(Shader::new("shaders/player_shader.vert", "shaders/player_shader.frag").unwrap());
+    let wigglyShader = Rc::new(Shader::new("shaders/wiggly_shader.vert", "shaders/player_shader.frag").unwrap());
 
     let basicerShader = Shader::new("shaders/basicer_shader.vert", "shaders/basicer_shader.frag").unwrap();
     let basicTextureShader = Rc::new(Shader::new("shaders/basic_texture_shader.vert", "shaders/basic_texture_shader.frag").unwrap());
     let blurShader = Shader::new("shaders/basicer_shader.vert", "shaders/blur_shader.frag").unwrap();
     let sceneDrawShader = Shader::new("shaders/basicer_shader.vert", "shaders/texture_merge_shader.frag").unwrap();
     let simpleDepthShader = Shader::new("shaders/depth_shader.vert", "shaders/depth_shader.frag").unwrap();
-    let playerShader = Rc::new(Shader::new("shaders/player_shader.vert", "shaders/player_shader.frag").unwrap());
-    let wigglyShader = Shader::new("shaders/wiggly_shader.vert", "shaders/player_shader.frag").unwrap();
     let textureShader = Rc::new(Shader::new("shaders/geom_shader.vert", "shaders/texture_shader.frag").unwrap());
 
     simpleDepthShader.use_shader();
@@ -271,12 +209,35 @@ fn main() {
     playerShader.set_vec3("directionLight.dir", &playerLightDir);
     playerShader.set_vec3("directionLight.color", &lightColor);
     playerShader.set_vec3("ambient", &ambientColor);
-    playerShader.set_int("texture_spec", texUnit_playerSpec);
-
-    // let wigglyBoi = ModelBuilder::new("wigglyBoi", Rc::new(wigglyShader), "assets/Models/Eeldog/EelDog.FBX").build().unwrap();
 
     // player model textures handled externally
-    let player_model = ModelBuilder::new("player", Rc::new(simpleDepthShader), "assets/Models/Player/Player.fbx").build().unwrap();
+    let player_model = ModelBuilder::new("player", "assets/Models/Player/Player.fbx")
+        .add_texture("Player", TextureType::Diffuse, "Textures/Player_D.tga")
+        .add_texture( "Player", TextureType::Specular, "Textures/Player_M.tga")
+        .add_texture( "Player", TextureType::Emissive, "Textures/Player_E.tga", )
+        .add_texture( "Player", TextureType::Normals, "Textures/Player_NRM.tga", )
+        .add_texture( "Gun", TextureType::Diffuse, "Textures/Gun_D.tga", )
+        .add_texture( "Gun", TextureType::Specular, "Textures/Gun_M.tga", )
+        .add_texture( "Gun", TextureType::Emissive, "Textures/Gun_E.tga", )
+        .add_texture( "Gun", TextureType::Normals, "Textures/Gun_NRM.tga", )
+        .build().unwrap();
+
+    let idle = Rc::new(AnimationClip::new("idle", 55.0, 130.0, AnimationRepeat::Forever));
+    let forward = Rc::new(AnimationClip::new("forward", 134.0, 154.0, AnimationRepeat::Forever));
+    let backwards = Rc::new(AnimationClip::new("backwards", 159.0, 179.0, AnimationRepeat::Forever));
+    let right = Rc::new(AnimationClip::new("right", 184.0, 204.0, AnimationRepeat::Forever));
+    let left = Rc::new(AnimationClip::new("left", 209.0, 229.0, AnimationRepeat::Forever));
+    let dying = Rc::new(AnimationClip::new("dying", 234.0, 293.0, AnimationRepeat::Once));
+
+    player_model.play_clip(&idle);
+    player_model.play_clip_with_transition(&forward, Duration::from_secs(6));
+    state.player.animation_name = String::from(&forward.name);
+
+
+    let wigglyBoi = ModelBuilder::new("dog", "assets/Models/Eeldog/EelDog.FBX")
+        .build().unwrap();
+
+    let mut enemy_spawner = EnemySpawner::new(monsterY);
 
     // logTimeSince("shaders loaded ", appStart);
 
@@ -286,56 +247,39 @@ fn main() {
 
     let textures_to_load = [
         // from angrygl
-        (texUnit_impactSpriteSheet, "angrygl_assets/bullet/impact_spritesheet_with_00.png"),
-        (texUnit_muzzleFlashSpriteSheet, "angrygl_assets/Player/muzzle_spritesheet.png"),
-        //(texUnit_bullet, "angrygl_assets/bullet/BulletTexture2.png"), todo: need to create this one. view video for details
-
+        (texUnit_impactSpriteSheet, TextureType::Diffuse, "angrygl_assets/bullet/impact_spritesheet_with_00.png"),
+        (texUnit_muzzleFlashSpriteSheet, TextureType::Diffuse, "angrygl_assets/Player/muzzle_spritesheet.png"),
+        //(texUnit_bullet, TextureType::Diffuse, "angrygl_assets/bullet/BulletTexture2.png"), todo: need to create this one. view video for details
         // from Unity
-        (texUnit_bullet, "assets/Models/Bullet/Textures/BulletTexture.png"), // using this temporarily to get code right
-        (texUnit_wigglyBoi, "assets/Models/Eeldog/Eeldog_Green_Albedo.png"),
-        (texUnit_floorNormal, "assets/Models/Floor N.png"),
-        (texUnit_floorDiffuse, "assets/Models/Floor D.png"),
-        (texUnit_floorSpec, "assets/Models/Floor M.png"),
-        (texUnit_gunNormal, "assets/Models/Player/Textures/Gun_NRM.tga"),
-        (texUnit_playerNormal, "assets/Models/Player/Textures/Player_NRM.tga"),
-        (texUnit_gunDiffuse, "assets/Models/Player/Textures/Gun_D.tga"),
-        (texUnit_playerEmission, "assets/Models/Player/Textures/Player_E.tga"),
-        (texUnit_playerSpec, "assets/Models/Player/Textures/Player_M.tga"),
-        (texUnit_gunEmission, "assets/Models/Player/Textures/Gun_E.tga"),
-        (texUnit_playerDiffuse, "assets/Models/Player/Textures/Player_D.tga"),
-        (texUnit_gunSpec, "assets/Models/Player/Textures/Gun_M.tga"),
+        (texUnit_bullet, TextureType::Diffuse, "assets/Models/Bullet/Textures/BulletTexture.png"), // using this temporarily to get code right
+        // (texUnit_wigglyBoi, TextureType::Diffuse, "assets/Models/Eeldog/Eeldog_Green_Albedo.png"),
+        (texUnit_floorNormal, TextureType::Normals, "assets/Models/Floor N.png"),
+        (texUnit_floorDiffuse, TextureType::Diffuse, "assets/Models/Floor D.png"),
+        (texUnit_floorSpec, TextureType::Specular, "assets/Models/Floor M.png"),
     ];
-    
-    let texture_config = TextureConfig {
-        flip_v: false,
-        gamma_correction: false,
-        filter: TextureFilter::Linear,
-        texture_type: TextureType::None,
-        wrap: TextureWrap::Repeat,
-    };
-
 
     let mut texture_cache = TextureCache::new();
+    let mut texture_config = TextureConfig::new().set_wrap(TextureWrap::Repeat);
 
-    for texture_spec in textures_to_load {
-        let texture = texture_cache.get_or_load_texture(texture_spec.1, &texture_config);
+    for (_unit, texture_type, path) in textures_to_load {
+        texture_config.texture_type = texture_type;
+        let texture = texture_cache.get_or_load_texture(path, &texture_config);
         match texture {
-            Ok(_) => println!("Loaded: {}", texture_spec.1),
-            Err(e) => println!("Error loading: {} {}", texture_spec.1, e),
+            Ok(_) => println!("Loaded: {}", path),
+            Err(e) => println!("Error loading: {} {}", path, e),
         }
     }
 
-    let playerSpec_texture = texture_cache.get_or_load_texture("assets/Models/Player/Textures/Player_M.tga", &texture_config).unwrap();
-    let playerDiffuse_texture = texture_cache.get_or_load_texture("assets/Models/Player/Textures/Player_D.tga", &texture_config).unwrap();
-    let playerNormal_texture = texture_cache.get_or_load_texture("assets/Models/Player/Textures/Player_NRM.tga", &texture_config).unwrap();
-    let playerEmission_texture = texture_cache.get_or_load_texture("assets/Models/Player/Textures/Player_E.tga", &texture_config).unwrap();
-
-
     let floor = Floor::new(&mut texture_cache, &basicTextureShader);
 
-
+    unsafe {
+        gl::Enable(gl::DEPTH_TEST);
+        gl::Enable(gl::BLEND);
+        gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
+    }
 
     println!("Assets loaded. Starting loop.");
+
     // render loop
     while !window.should_close() {
         let current_time = glfw.get_time() as f32;
@@ -360,7 +304,7 @@ fn main() {
             2000.0,
         );
 
-        let camera_position = state.player.playerPosition + cameraFollowVec.clone();
+        let camera_position = state.player.position + cameraFollowVec.clone();
 
         // let view = Mat4::look_at_rh(camera_position, state.player.playerPosition, state.camera.up);
 
@@ -374,27 +318,57 @@ fn main() {
         // let aimTheta = (dx / dz).atan() + if dz < 0.0 { PI } else { 0.0 };
         let aimTheta = 0.0;
 
-        let mut player_model_transform = Mat4::from_translation(state.player.playerPosition);
-        //player_model_transform *= Mat4::from_scale(Vec3::splat(playerModelScale));
-        player_model_transform *= Mat4::from_scale(Vec3::splat(0.5));
+
+        let mut player_model_transform = Mat4::from_translation(state.player.position);
+        player_model_transform *= Mat4::from_scale(Vec3::splat(playerModelScale));
+        // player_model_transform *= Mat4::from_scale(Vec3::splat(0.05));
         player_model_transform *= Mat4::from_axis_angle(vec3(0.0, 1.0, 0.0), aimTheta);
 
         playerShader.use_shader();
         playerShader.set_vec3("viewPos", &camera_position);
         playerShader.set_mat4("model", &player_model_transform);
         playerShader.set_mat4("aimRot", &Mat4::IDENTITY);
-        playerShader.set_mat4("PV", &projection_view);
-        playerShader.set_bool("useLight", false);
+        playerShader.set_mat4("lightSpaceMatrix", &Mat4::IDENTITY);
+        playerShader.set_mat4("projectionView", &projection_view);
+        playerShader.set_bool("useLight", true);
         playerShader.set_vec3("ambient", &ambientColor);
-        // playerNormal_texture
-        // playerEmission_texture
-        set_texture(&playerShader, 0, "texture_spec", &playerSpec_texture);
-        set_texture(&playerShader, 1, "texture_diffuse", &playerDiffuse_texture);
 
+        player_model.update_animation(state.delta_time);
+        player_model.render(&playerShader);
 
+        if !state.player.isAlive {
+            if state.player.animation_name != String::from(&dying.name) {
+                player_model.play_clip_with_transition(&dying, Duration::from_secs(1));
+                state.player.animation_name = String::from(&dying.name);
+            }
+        }
 
+        wigglyShader.use_shader();
+        wigglyShader.set_mat4("projectionView", &projection_view);
 
-        player_model.render_with_shader(&playerShader);
+        let mut wiggly_transform = Mat4::from_translation(vec3(0.0, 0.5, 0.0));
+        // wiggly_transform *= Mat4::from_scale(Vec3::splat(playerModelScale));
+        wiggly_transform *= Mat4::from_scale(Vec3::splat(0.1));
+        // wiggly_transform *= Mat4::from_axis_angle(vec3(0.0, 0.0, 1.0), -90.0f32.to_radians());
+        wiggly_transform *= Mat4::from_axis_angle(vec3(1.0, 0.0, 0.0), -90.0f32.to_radians());
+        // wiggly_transform *= Mat4::from_axis_angle(vec3(0.0, 1.0, 0.0), aimTheta);
+        wigglyShader.set_mat4("model", &wiggly_transform);
+
+        wigglyShader.set_vec3("viewPos", &vec3(0.0, 0.0, 1.0)); //camera_position);
+        wigglyShader.set_mat4("aimRot", &Mat4::IDENTITY);
+        wigglyShader.set_mat4("lightSpaceMatrix", &Mat4::IDENTITY);
+        wigglyShader.set_bool("useLight", false);
+        wigglyShader.set_vec3("ambient", &ambientColor);
+
+        wigglyShader.set_float("time", current_time);
+        wigglyShader.set_vec3("nosePos", &vec3(1.0, 1.0, -2.0));
+        //
+        // wigglyBoi.render(&wigglyShader);
+
+        draw_wiggly_bois(&wigglyBoi, &wigglyShader, &mut state);
+
+        enemy_spawner.update(&mut state);
+        chase_player(&mut state);
 
         window.swap_buffers();
     }
@@ -481,74 +455,6 @@ fn scroll_handler(state: &mut State, _xoffset: f64, yoffset: f64) {
     state.camera.process_mouse_scroll(yoffset as f32);
 }
 
-fn chasePlayer(state: &mut State) {
-    let playerCollisionPosition = vec3(state.player.playerPosition.x, monsterY, state.player.playerPosition.z);
-    for enemy in state.enemies.iter_mut() {
-        let mut dir = state.player.playerPosition - enemy.position;
-        dir.y = 0.0;
-        enemy.dir = dir.normalize_or_zero();
-        enemy.position += enemy.dir * state.delta_time * monsterSpeed;
-        if state.player.isAlive {
-            let p1 = enemy.position - enemy.dir * (ENEMY_COLLIDER.height / 2.0);
-            let p2 = enemy.position + enemy.dir * (ENEMY_COLLIDER.height / 2.0);
-            let dist = distanceBetweenPointAndLineSegment(&playerCollisionPosition, &p1, &p2);
-            if dist <= (playerCollisionRadius + ENEMY_COLLIDER.radius) {
-                println!("GOTTEM!");
-                state.player.isAlive = false;
-                state.player.playerMovementDir = vec2(0.0, 0.0);
-            }
-        }
-    }
-}
 
-fn drawWigglyBois(wigglyBoi: &Model, state: &mut State) {
 
-    wigglyBoi.shader.use_shader();
-    wigglyBoi.shader.set_vec3("nosePos", &vec3(1.0, monsterY, -2.0));
 
-    // TODO optimise (multithreaded, instancing, SOA, etc..)
-    for e in state.enemies.iter_mut() {
-        let monsterTheta = (e.dir.x / e.dir.z).atan() + (if e.dir.z < 0.0 { 0.0 } else { PI });
-
-        let mut model_transform = Mat4::from_translation(e.position);
-        model_transform *= Mat4::from_scale(Vec3::splat(0.01));
-        model_transform *= Mat4::from_axis_angle(vec3(0.0, 1.0, 0.0), monsterTheta);
-        model_transform *= Mat4::from_axis_angle(vec3(0.0, 0.0, 1.0), PI);
-        model_transform *= Mat4::from_axis_angle(vec3(1.0, 0.0, 0.0), 90.0f32.to_radians());
-
-        let mut rot_only = Mat4::from_axis_angle(vec3(0.0, 1.0, 0.0), monsterTheta);
-        rot_only = Mat4::from_axis_angle(vec3(0.0, 0.0, 1.0), PI);
-        rot_only = Mat4::from_axis_angle(vec3(1.0, 0.0, 0.0), 90.0f32.to_radians());
-
-        wigglyBoi.shader.set_mat4("aimRot", &rot_only);
-        wigglyBoi.shader.set_mat4("model", &model_transform);
-
-        wigglyBoi.render();
-    }
-}
-
-fn setup_depth_map() -> GLuint {
-    let mut depthMapFBO: GLuint = 0;
-    let mut depthMap: GLuint = 0;
-    unsafe {
-        // gl::ActiveTexture(gl::TEXTURE0 + texUnit_shadowMap);
-        gl::GenFramebuffers(1, &mut depthMapFBO);
-        let SHADOW_WIDTH = 6 * 1024;
-        let SHADOW_HEIGHT = 6 * 1024;
-        gl::GenTextures(1, &mut depthMap);
-        gl::BindTexture(gl::TEXTURE_2D, depthMap);
-        gl::TexImage2D(gl::TEXTURE_2D, 0, gl::DEPTH_COMPONENT as GLint, SHADOW_WIDTH, SHADOW_HEIGHT, 0, gl::DEPTH_COMPONENT, gl::FLOAT, null!());
-        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as GLint);
-        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as GLint);
-        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_BORDER as GLint);
-        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_BORDER as GLint);
-        let borderColor = [1.0f32, 1.0f32, 1.0f32, 1.0f32 ];
-        gl::TexParameterfv(gl::TEXTURE_2D, gl::TEXTURE_BORDER_COLOR, borderColor.as_ptr());
-        gl::BindFramebuffer(gl::FRAMEBUFFER, depthMapFBO);
-        gl::FramebufferTexture2D(gl::FRAMEBUFFER, gl::DEPTH_ATTACHMENT, gl::TEXTURE_2D, depthMap, 0);
-        gl::DrawBuffer(gl::NONE);
-        gl::ReadBuffer(gl::NONE);
-        gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
-    }
-    depthMapFBO
-}

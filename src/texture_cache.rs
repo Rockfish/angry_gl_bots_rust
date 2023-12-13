@@ -22,6 +22,7 @@ impl TextureCache {
         match cached {
             None => {
                 let texture = Rc::new(Texture::new(os_string.clone(), texture_config)?);
+                // println!("-loaded texture: {:?}", &texture);
                 self.texture_cache.insert(os_string, texture.clone());
                 Ok(texture)
             }
