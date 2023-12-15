@@ -23,9 +23,6 @@ pub struct SpriteSheetSprite {
 
 impl SpriteSheetSprite {
     pub fn new(world_position: Vec3) -> Self {
-        SpriteSheetSprite {
-            world_position,
-            age: 0.0,
-        }
+        SpriteSheetSprite { world_position, age: 0.0 }
     }
 }

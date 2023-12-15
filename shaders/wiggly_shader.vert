@@ -13,9 +13,8 @@ out vec3 Norm;
 out vec4 FragPosLightSpace;
 out vec3 FragWorldPos;
 
-// Transformation matrices
-uniform mat4 model;
 uniform mat4 projectionView;
+uniform mat4 model;
 uniform mat4 aimRot;
 uniform mat4 lightSpaceMatrix;
 

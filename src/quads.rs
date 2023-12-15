@@ -1,5 +1,5 @@
-use small_gl_core::{gl, null, SIZE_OF_FLOAT};
 use small_gl_core::gl::{GLsizei, GLsizeiptr, GLuint, GLvoid};
+use small_gl_core::{gl, null, SIZE_OF_FLOAT};
 
 #[rustfmt::skip]
 const unitSquare: [f32; 30] = [
@@ -27,10 +27,22 @@ pub fn load_obnoxiousQuadVAO() -> GLuint {
         gl::GenBuffers(1, &mut obnoxiousQuadVBO);
         gl::BindVertexArray(obnoxiousQuadVAO);
         gl::BindBuffer(gl::ARRAY_BUFFER, obnoxiousQuadVBO);
-        gl::BufferData(gl::ARRAY_BUFFER, (obnoxiousQuad.len() * SIZE_OF_FLOAT) as GLsizeiptr, obnoxiousQuad.as_ptr() as *const GLvoid, gl::STATIC_DRAW);
+        gl::BufferData(
+            gl::ARRAY_BUFFER,
+            (obnoxiousQuad.len() * SIZE_OF_FLOAT) as GLsizeiptr,
+            obnoxiousQuad.as_ptr() as *const GLvoid,
+            gl::STATIC_DRAW,
+        );
         gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, std::ptr::null::<GLvoid>());
         gl::EnableVertexAttribArray(0);
-        gl::VertexAttribPointer(1, 2, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, (3 * SIZE_OF_FLOAT) as *const GLvoid);
+        gl::VertexAttribPointer(
+            1,
+            2,
+            gl::FLOAT,
+            gl::FALSE,
+            (5 * SIZE_OF_FLOAT) as GLsizei,
+            (3 * SIZE_OF_FLOAT) as *const GLvoid,
+        );
         gl::EnableVertexAttribArray(1);
     }
     obnoxiousQuadVAO
@@ -44,10 +56,22 @@ pub fn load_unitSquareVAO() -> GLuint {
         gl::GenBuffers(1, &mut unitSquareVBO);
         gl::BindVertexArray(unitSquareVAO);
         gl::BindBuffer(gl::ARRAY_BUFFER, unitSquareVBO);
-        gl::BufferData(gl::ARRAY_BUFFER, (unitSquare.len() * SIZE_OF_FLOAT) as GLsizeiptr, unitSquare.as_ptr() as *const GLvoid, gl::STATIC_DRAW);
+        gl::BufferData(
+            gl::ARRAY_BUFFER,
+            (unitSquare.len() * SIZE_OF_FLOAT) as GLsizeiptr,
+            unitSquare.as_ptr() as *const GLvoid,
+            gl::STATIC_DRAW,
+        );
         gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, std::ptr::null::<GLvoid>());
         gl::EnableVertexAttribArray(0);
-        gl::VertexAttribPointer(1, 2, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, (3 * SIZE_OF_FLOAT) as *const GLvoid);
+        gl::VertexAttribPointer(
+            1,
+            2,
+            gl::FLOAT,
+            gl::FALSE,
+            (5 * SIZE_OF_FLOAT) as GLsizei,
+            (3 * SIZE_OF_FLOAT) as *const GLvoid,
+        );
         gl::EnableVertexAttribArray(1);
     }
     unitSquareVAO
@@ -61,10 +85,22 @@ pub fn load_moreObnoxiousQuadVAO() -> GLuint {
         gl::GenBuffers(1, &mut moreObnoxiousQuadVBO);
         gl::BindVertexArray(moreObnoxiousQuadVAO);
         gl::BindBuffer(gl::ARRAY_BUFFER, moreObnoxiousQuadVBO);
-        gl::BufferData(gl::ARRAY_BUFFER, (moreObnoxiousQuad.len() * SIZE_OF_FLOAT) as GLsizeiptr, moreObnoxiousQuad.as_ptr() as *const GLvoid, gl::STATIC_DRAW);
+        gl::BufferData(
+            gl::ARRAY_BUFFER,
+            (moreObnoxiousQuad.len() * SIZE_OF_FLOAT) as GLsizeiptr,
+            moreObnoxiousQuad.as_ptr() as *const GLvoid,
+            gl::STATIC_DRAW,
+        );
         gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, null!());
         gl::EnableVertexAttribArray(0);
-        gl::VertexAttribPointer(1, 2, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, (3 * SIZE_OF_FLOAT) as *const GLvoid);
+        gl::VertexAttribPointer(
+            1,
+            2,
+            gl::FLOAT,
+            gl::FALSE,
+            (5 * SIZE_OF_FLOAT) as GLsizei,
+            (3 * SIZE_OF_FLOAT) as *const GLvoid,
+        );
         gl::EnableVertexAttribArray(1);
     }
     moreObnoxiousQuadVAO

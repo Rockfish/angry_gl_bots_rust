@@ -1,13 +1,10 @@
 use crate::capsule::Capsule;
-use glam::{vec2, Vec3, vec3};
-use small_gl_core::utils::rand_float;
-use crate::{monsterSpeed, monsterY, playerCollisionRadius, State};
 use crate::geom::distanceBetweenPointAndLineSegment;
+use crate::{monsterSpeed, monsterY, playerCollisionRadius, State};
+use glam::{vec2, vec3, Vec3};
+use small_gl_core::utils::rand_float;
 
-pub const ENEMY_COLLIDER: Capsule = Capsule {
-    height: 0.4,
-    radius: 0.08,
-};
+pub const ENEMY_COLLIDER: Capsule = Capsule { height: 0.4, radius: 0.08 };
 
 pub struct Enemy {
     pub position: Vec3,
@@ -22,7 +19,7 @@ impl Enemy {
 
 const enemySpawnInterval: f32 = 1.0; // seconds
 const spawnsPerInterval: i32 = 1;
-const spawnRadius: f32 = 10.0;  // from player
+const spawnRadius: f32 = 10.0; // from player
 
 pub struct EnemySpawner {
     count_down: f32,
@@ -31,7 +28,10 @@ pub struct EnemySpawner {
 
 impl EnemySpawner {
     pub fn new(monster_y: f32) -> Self {
-        EnemySpawner { count_down: enemySpawnInterval, monster_y }
+        EnemySpawner {
+            count_down: enemySpawnInterval,
+            monster_y,
+        }
     }
 
     pub fn update(&mut self, state: &mut State) {
@@ -56,7 +56,6 @@ pub fn chase_player(state: &mut State) {
     let playerCollisionPosition = vec3(state.player.position.x, monsterY, state.player.position.z);
 
     for enemy in state.enemies.iter_mut() {
-
         let mut dir = state.player.position - enemy.position;
         dir.y = 0.0;
         enemy.dir = dir.normalize_or_zero();

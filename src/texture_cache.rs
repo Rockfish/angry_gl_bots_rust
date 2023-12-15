@@ -1,15 +1,14 @@
+use small_gl_core::error::Error;
+use small_gl_core::texture::{Texture, TextureConfig};
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::rc::Rc;
-use small_gl_core::error::Error;
-use small_gl_core::texture::{Texture, TextureConfig};
 
 pub struct TextureCache {
     texture_cache: HashMap<OsString, Rc<Texture>>,
 }
 
 impl TextureCache {
-
     pub fn new() -> Self {
         TextureCache {
             texture_cache: HashMap::new(),
@@ -26,9 +25,7 @@ impl TextureCache {
                 self.texture_cache.insert(os_string, texture.clone());
                 Ok(texture)
             }
-            Some(texture) => {
-                Ok(texture.clone())
-            }
+            Some(texture) => Ok(texture.clone()),
         }
     }
 }

@@ -1,14 +1,14 @@
-use std::f32::consts::PI;
-use std::rc::Rc;
-use glam::{Mat4, vec3, Vec3};
+use crate::{monsterY, State};
+use glam::{vec3, Mat4, Vec3};
 use small_gl_core::model::Model;
 use small_gl_core::shader::Shader;
-use crate::{monsterY, State};
+use std::f32::consts::PI;
+use std::rc::Rc;
 
 pub fn draw_wiggly_bois(wigglyBoi: &Model, shader: &Rc<Shader>, state: &mut State) {
-
     shader.use_shader();
     shader.set_vec3("nosePos", &vec3(1.0, monsterY, -2.0));
+    shader.set_float("time", state.frame_time);
 
     // TODO optimise (multithreaded, instancing, SOA, etc..)
     for e in state.enemies.iter_mut() {

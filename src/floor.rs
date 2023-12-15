@@ -1,11 +1,11 @@
-use std::rc::Rc;
-use std::mem;
-use glam::{Mat4, vec3, Vec3};
-use small_gl_core::{gl, null, SIZE_OF_FLOAT, size_of_floats};
+use crate::texture_cache::TextureCache;
+use glam::{vec3, Mat4, Vec3};
 use small_gl_core::gl::{GLsizei, GLsizeiptr, GLuint, GLvoid};
 use small_gl_core::shader::Shader;
 use small_gl_core::texture::{Texture, TextureConfig, TextureFilter, TextureType, TextureWrap};
-use crate::texture_cache::TextureCache;
+use small_gl_core::{gl, null, size_of_floats, SIZE_OF_FLOAT};
+use std::mem;
+use std::rc::Rc;
 
 const floorSize: f32 = 100.0;
 const tileSize: f32 = 1.0;
@@ -39,7 +39,7 @@ impl Floor {
             gamma_correction: false,
             filter: TextureFilter::Linear,
             texture_type: TextureType::None,
-            wrap: TextureWrap::Repeat
+            wrap: TextureWrap::Repeat,
         };
 
         let texUnit_floorDiffuse = texture_cache.get_or_load_texture("assets/Models/Floor D.png", &texture_config).unwrap();
@@ -54,10 +54,22 @@ impl Floor {
             gl::GenBuffers(1, &mut floorVBO);
             gl::BindVertexArray(floorVAO);
             gl::BindBuffer(gl::ARRAY_BUFFER, floorVBO);
-            gl::BufferData(gl::ARRAY_BUFFER, (floorVertices.len() * SIZE_OF_FLOAT) as GLsizeiptr, floorVertices.as_ptr() as *const GLvoid, gl::STATIC_DRAW);
+            gl::BufferData(
+                gl::ARRAY_BUFFER,
+                (floorVertices.len() * SIZE_OF_FLOAT) as GLsizeiptr,
+                floorVertices.as_ptr() as *const GLvoid,
+                gl::STATIC_DRAW,
+            );
             gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, null!());
             gl::EnableVertexAttribArray(0);
-            gl::VertexAttribPointer(1, 2, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, (3 * SIZE_OF_FLOAT) as *const GLvoid);
+            gl::VertexAttribPointer(
+                1,
+                2,
+                gl::FLOAT,
+                gl::FALSE,
+                (5 * SIZE_OF_FLOAT) as GLsizei,
+                (3 * SIZE_OF_FLOAT) as *const GLvoid,
+            );
             gl::EnableVertexAttribArray(1);
         }
 
@@ -72,14 +84,14 @@ impl Floor {
         }
     }
 
-    pub fn draw(&self, projection_view: &Mat4, ambientColor: &Vec3) { //}, light_space_matrix: Option<Mat4>) {
+    pub fn draw(&self, projection_view: &Mat4, ambientColor: &Vec3) {
+        //}, light_space_matrix: Option<Mat4>) {
         self.shader.use_shader();
 
         set_texture(&self.shader, 0, "texture_diffuse", &self.texUnit_floorDiffuse);
         set_texture(&self.shader, 1, "texture_normal", &self.texUnit_floorNormal);
         set_texture(&self.shader, 2, "texture_spec", &self.texUnit_floorSpec);
         set_texture(&self.shader, 3, "shadow_map", &self.texUnit_shadowMap);
-
 
         // self.shader.setBool("useLight", light_space_matrix.is_some());
         // self.shader.setBool("useSpec", light_space_matrix.is_some());
