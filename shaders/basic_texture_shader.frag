@@ -7,6 +7,7 @@ struct DirectionLight {
   vec3 dir;
   vec3 color;
 };
+
 uniform DirectionLight directionLight;
 
 uniform sampler2D texture_diffuse;
@@ -16,6 +17,7 @@ uniform vec3 ambient;
 
 void main() {
   vec4 color = texture(texture_diffuse, TexCoord);
+
   if (useLight) {
     vec3 lightDir = normalize(-directionLight.dir);
     vec3 normal = vec3(texture(texture_normal, TexCoord));
@@ -24,6 +26,8 @@ void main() {
     vec3 amb = ambient * vec3(texture(texture_diffuse, TexCoord));
     color = vec4(directionLight.color, 1.0) * color * diff + vec4(amb, 1.0);
   }
+
   FragColor = color;
+//  FragColor = vec4(0.1, 0.8, 0.1, 1.0);
 }
 

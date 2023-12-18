@@ -1,6 +1,6 @@
+use crate::State;
 use glam::{Vec2, Vec3};
 use std::rc::Rc;
-use crate::State;
 
 pub struct Player {
     pub lastFireTime: f32,
@@ -10,6 +10,7 @@ pub struct Player {
     pub position: Vec3,
     pub movementDir: Vec2,
     pub animation_name: String,
+    pub speed: f32,
 }
 
 impl Player {
@@ -22,12 +23,14 @@ impl Player {
             position: Default::default(),
             movementDir: Default::default(),
             animation_name: "".to_string(),
+            speed: 0.0,
         }
     }
 
     pub fn update_points_for_anim(&mut self, x: &mut State) {
 
         // animate player's direction changes
-
     }
+
+    pub fn draw(&self) {}
 }

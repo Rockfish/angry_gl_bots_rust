@@ -1,11 +1,14 @@
 use crate::geom::oriented_angle;
-use glam::{vec3, Quat, Vec3};
-use small_gl_core::gl::{GLsizei, GLsizeiptr, GLuint, GLvoid};
-use small_gl_core::{gl, size_of_floats, SIZE_OF_FLOAT};
-use std::f32::consts::PI;
-use std::mem;
 use crate::sprite_sheet::SpriteSheetSprite;
 use crate::State;
+use glam::{vec3, Mat4, Quat, Vec3};
+use small_gl_core::gl::{GLsizei, GLsizeiptr, GLuint, GLvoid};
+use small_gl_core::shader::Shader;
+use small_gl_core::texture::{Texture, TextureConfig, TextureFilter, TextureType, TextureWrap};
+use small_gl_core::{gl, SIZE_OF_FLOAT, SIZE_OF_QUAT, SIZE_OF_VEC3};
+use std::f32::consts::PI;
+use std::rc::Rc;
+use crate::texture_cache::TextureCache;
 
 pub struct BulletGroup {
     start_index: usize,
@@ -32,11 +35,11 @@ pub struct BulletStore {
     instance_vbo: GLuint,
     offset_vbo: GLuint,
     bullet_groups: Vec<BulletGroup>,
+    pub texUnit_bullet: Rc<Texture>,
 }
 
-
-
-const bulletScale: f32 = 0.3;
+//const bulletScale: f32 = 0.3;
+const bulletScale: f32 = 1.0;
 const bulletLifetime: f32 = 1.0;
 // seconds
 const bulletSpeed: f32 = 15.0;
@@ -48,49 +51,78 @@ const bulletNormal: Vec3 = vec3(0.0, 1.0, 0.0);
 const canonicalDir: Vec3 = vec3(0.0, 0.0, 1.0);
 
 #[rustfmt::skip]
-const bulletVertices: [f32; 20] = [
-    // Positions                                         // Tex Coords
-    bulletScale * (-0.243), 0.0, bulletScale * (-0.5), 1.0, 0.0,
-    bulletScale * (-0.243), 0.0, bulletScale * 0.5, 0.0, 0.0,
-    bulletScale * 0.243, 0.0, bulletScale * 0.5, 0.0, 1.0,
-    bulletScale * 0.243, 0.0, bulletScale * (-0.5), 1.0, 1.0
+const bullet_vertices: [f32; 20] = [
+    // Positions                                        // Tex Coords
+    bulletScale * (-0.243), 0.1, bulletScale * (-0.5),  1.0, 0.0,
+    bulletScale * (-0.243), 0.1, bulletScale * 0.5,     0.0, 0.0,
+    bulletScale * 0.243,    0.1, bulletScale * 0.5,     0.0, 1.0,
+    bulletScale * 0.243,    0.1, bulletScale * (-0.5),  1.0, 1.0
 ];
 
 #[rustfmt::skip]
-const bulletIndices: [i32; 6] = [
+const bullet_indices: [i32; 6] = [
     0, 1, 2,
     0, 2, 3
 ];
 
 impl BulletStore {
-    pub fn new(/* threadpool */) -> Self { // initialize_buffer_and_create
+    pub fn new(texture_cache: &mut TextureCache) -> Self {
+        // initialize_buffer_and_create
         let mut bullet_vao: GLuint = 0;
         let mut bullet_vbo: GLuint = 0;
         let mut bullet_ebo: GLuint = 0;
+
         let mut instance_vbo: GLuint = 0;
         let mut offset_vbo: GLuint = 0;
 
+        let texture_config = TextureConfig {
+            flip_v: false,
+            gamma_correction: false,
+            filter: TextureFilter::Linear,
+            texture_type: TextureType::None,
+            wrap: TextureWrap::Repeat,
+        };
+
+        let texUnit_bullet = texture_cache
+            .get_or_load_texture("assets/Models/Bullet/Textures/BulletTexture.png", &texture_config)
+            .unwrap();
+
+        // let texUnit_bullet = texture_cache
+        //     .get_or_load_texture("assets/Models/Floor N.png", &texture_config)
+        //     .unwrap();
+
         unsafe {
             gl::GenVertexArrays(1, &mut bullet_vao);
+
             gl::GenBuffers(1, &mut bullet_vbo);
             gl::GenBuffers(1, &mut bullet_ebo);
+
             gl::BindVertexArray(bullet_vao);
             gl::BindBuffer(gl::ARRAY_BUFFER, bullet_vbo);
+
+            // vertices data
             gl::BufferData(
                 gl::ARRAY_BUFFER,
-                size_of_floats!((bulletVertices.len())) as GLsizeiptr,
-                bulletVertices.as_ptr() as *const GLvoid,
+                (bullet_vertices.len() * SIZE_OF_FLOAT) as GLsizeiptr,
+                bullet_vertices.as_ptr() as *const GLvoid,
                 gl::STATIC_DRAW,
             );
+
+            // indices data
             gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, bullet_ebo);
             gl::BufferData(
                 gl::ELEMENT_ARRAY_BUFFER,
-                size_of_floats!(bulletIndices.len()) as GLsizeiptr,
-                bulletIndices.as_ptr() as *const GLvoid,
+                (bullet_indices.len() * SIZE_OF_FLOAT) as GLsizeiptr,
+                bullet_indices.as_ptr() as *const GLvoid,
                 gl::STATIC_DRAW,
             );
-            gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, std::ptr::null::<GLvoid>());
+
+            // location 0: positions
             gl::EnableVertexAttribArray(0);
+            gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, std::ptr::null::<GLvoid>());
+
+            // location 1: texture coordinates
+            gl::EnableVertexAttribArray(1);
             gl::VertexAttribPointer(
                 1,
                 2,
@@ -99,19 +131,28 @@ impl BulletStore {
                 (5 * SIZE_OF_FLOAT) as GLsizei,
                 (3 * SIZE_OF_FLOAT) as *const GLvoid,
             );
-            gl::EnableVertexAttribArray(1);
 
+            // instance vbo
             gl::GenBuffers(1, &mut instance_vbo);
             gl::BindBuffer(gl::ARRAY_BUFFER, instance_vbo);
+
+            // location: 2: rotations
             gl::EnableVertexAttribArray(2);
-            gl::VertexAttribPointer(2, 4, gl::FLOAT, gl::FALSE, mem::size_of::<Quat> as GLsizei, std::ptr::null::<GLvoid>());
+            gl::VertexAttribPointer(2, 4, gl::FLOAT, gl::FALSE, SIZE_OF_QUAT as GLsizei, std::ptr::null::<GLvoid>());
             gl::VertexAttribDivisor(2, 1);
 
+            // offset vbo
             gl::GenBuffers(1, &mut offset_vbo);
             gl::BindBuffer(gl::ARRAY_BUFFER, offset_vbo);
+
+            // location: 3: position offsets
             gl::EnableVertexAttribArray(3);
-            gl::VertexAttribPointer(3, 3, gl::FLOAT, gl::FALSE, mem::size_of::<Vec3> as GLsizei, std::ptr::null::<GLvoid>());
+            gl::VertexAttribPointer(3, 3, gl::FLOAT, gl::FALSE, SIZE_OF_VEC3 as GLsizei, std::ptr::null::<GLvoid>());
             gl::VertexAttribDivisor(3, 1);
+
+            println!("SIZE_OF_FLOAT: {}", SIZE_OF_FLOAT);
+            println!("SIZE_OF_QUAT: {}", SIZE_OF_QUAT);
+            println!("SIZE_OF_VEC3: {}", SIZE_OF_VEC3);
         }
 
         BulletStore {
@@ -122,14 +163,15 @@ impl BulletStore {
             instance_vbo,
             offset_vbo,
             bullet_groups: vec![],
+            texUnit_bullet
         }
     }
 
     pub fn create_bullets(&mut self, position: Vec3, midDir: Vec3, spreadAmount: i32) {
+
         let normalizedDir = midDir.normalize_or_zero();
 
         let mut midDirQuat = Quat::from_xyzw(1.0, 0.0, 0.0, 0.0);
-        // TODO there's probably a more efficient way to calculate this...
         {
             let rotVec = vec3(0.0, 1.0, 0.0);
             let x = vec3(canonicalDir.x, 0.0, canonicalDir.z).normalize_or_zero();
@@ -142,11 +184,14 @@ impl BulletStore {
         }
 
         let startIndex = self.all_bullet_positions.len();
+
         let bulletGroupSize = spreadAmount * spreadAmount;
         let g = BulletGroup::new(startIndex, bulletGroupSize, bulletLifetime);
+
         self.all_bullet_positions.resize(startIndex + bulletGroupSize as usize, Vec3::default());
         self.all_quats.resize(startIndex + bulletGroupSize as usize, Quat::default());
         self.all_bullet_directions.resize(startIndex + bulletGroupSize as usize, Vec3::default());
+
         let parallelism = 1; // threadPool->numWorkers();
         let workerGroupSize = spreadAmount / parallelism;
 
@@ -180,8 +225,78 @@ impl BulletStore {
         // }
         self.bullet_groups.push(g);
     }
-    pub(crate) fn update_bullets(&self, state: &State, bullet_impact_sprites: &Vec<SpriteSheetSprite>) {
+    pub(crate) fn update_bullets(&self, state: &State, bullet_impact_sprites: &Vec<SpriteSheetSprite>) {}
 
+    pub fn draw_bullets(&mut self, shader: &Rc<Shader>, projectionView: &Mat4) {
+        // self.all_bullet_positions.clear();
+        // self.all_quats.clear();
+        //
+        // let position = vec3(0.0, 1.0, 0.0);
+        //
+        // self.all_bullet_positions.push(position);
+        // self.all_quats.push(Quat::IDENTITY);
+
+        unsafe {
+            gl::Enable(gl::BLEND);
+            gl::DepthMask(gl::FALSE);
+            gl::ActiveTexture(gl::TEXTURE0 + self.texUnit_bullet.id);
+            gl::BindTexture(gl::TEXTURE_2D, self.texUnit_bullet.id);
+        }
+
+        shader.use_shader();
+
+        shader.set_int("texture_diffuse", self.texUnit_bullet.id as i32);
+        shader.set_int("texture_normal", self.texUnit_bullet.id as i32);
+
+        shader.set_bool("useLight", false);
+
+        shader.set_mat4("PV", projectionView);
+
+        // let scaled_pv = *projectionView * Mat4::from_scale(vec3(2.0, 2.0, 2.0));
+        // shader.set_mat4("PV", &scaled_pv);
+
+        self.renderBulletSprites();
+
+        unsafe {
+            gl::Disable(gl::BLEND);
+            gl::DepthMask(gl::TRUE);
+        }
+    }
+
+    pub fn renderBulletSprites(&self) {
+        // if self.bullet_groups.is_empty() {
+        //     return;
+        // }
+
+        unsafe {
+            gl::BindVertexArray(self.bullet_vao);
+
+            gl::BindBuffer(gl::ARRAY_BUFFER, self.instance_vbo);
+
+            gl::BufferData(
+                gl::ARRAY_BUFFER,
+                (self.all_quats.len() * SIZE_OF_QUAT) as GLsizeiptr,
+                self.all_quats.as_ptr() as *const GLvoid,
+                gl::STREAM_DRAW,
+            );
+
+            gl::BindBuffer(gl::ARRAY_BUFFER, self.offset_vbo);
+
+            gl::BufferData(
+                gl::ARRAY_BUFFER,
+                (self.all_bullet_positions.len() * SIZE_OF_VEC3) as GLsizeiptr,
+                self.all_bullet_positions.as_ptr() as *const GLvoid,
+                gl::STREAM_DRAW,
+            );
+
+            gl::DrawElementsInstanced(
+                gl::TRIANGLES,
+                6,
+                gl::UNSIGNED_INT,
+                0 as *const GLvoid,
+                self.all_bullet_positions.len() as GLsizei,
+            );
+        }
     }
 }
 

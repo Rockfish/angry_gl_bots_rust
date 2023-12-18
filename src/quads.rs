@@ -19,7 +19,7 @@ const obnoxiousQuad: [f32; 30] = [
     0.0, 0.0, 1.0, 1.0, -0.9, 1.0, 1.0, 0.5, 1.0, -0.9, 0.0, 1.0,
 ];
 
-pub fn load_obnoxiousQuadVAO() -> GLuint {
+pub fn create_obnoxiousQuadVAO() -> GLuint {
     let mut obnoxiousQuadVAO: GLuint = 0;
     let mut obnoxiousQuadVBO: GLuint = 0;
     unsafe {
@@ -48,7 +48,7 @@ pub fn load_obnoxiousQuadVAO() -> GLuint {
     obnoxiousQuadVAO
 }
 
-pub fn load_unitSquareVAO() -> GLuint {
+pub fn create_unitSquareVAO() -> GLuint {
     let mut unitSquareVAO: GLuint = 0;
     let mut unitSquareVBO: GLuint = 0;
     unsafe {
@@ -77,7 +77,7 @@ pub fn load_unitSquareVAO() -> GLuint {
     unitSquareVAO
 }
 
-pub fn load_moreObnoxiousQuadVAO() -> GLuint {
+pub fn create_moreObnoxiousQuadVAO() -> GLuint {
     let mut moreObnoxiousQuadVAO: GLuint = 0;
     let mut moreObnoxiousQuadVBO: GLuint = 0;
     unsafe {

@@ -1,6 +1,7 @@
 #version 330 core
 layout (location = 0) in vec3 inPos;
 layout (location = 1) in vec2 inTexCoord;
+
 layout (location = 2) in vec4 rotQuat;
 layout (location = 3) in vec3 posOffset;
 
@@ -26,6 +27,8 @@ vec3 rotateByQuat(vec3 v, vec4 q) {
 
 void main() {
   vec3 rotatedInPos = rotateByQuat(inPos, rotQuat);
-  gl_Position = PV * vec4(rotatedInPos + posOffset, 1.0);
+//  gl_Position = PV * vec4(rotatedInPos + posOffset, 1.0);
+  gl_Position = PV * vec4(inPos + posOffset, 1.0);
+
   TexCoord = inTexCoord;
 }
