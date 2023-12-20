@@ -9,11 +9,16 @@ pub const ENEMY_COLLIDER: Capsule = Capsule { height: 0.4, radius: 0.08 };
 pub struct Enemy {
     pub position: Vec3,
     pub dir: Vec3,
+    pub is_alive: bool,
 }
 
 impl Enemy {
     pub fn new(position: Vec3, dir: Vec3) -> Self {
-        Enemy { position, dir }
+        Enemy {
+            position,
+            dir,
+            is_alive: true,
+        }
     }
 }
 
@@ -69,7 +74,7 @@ pub fn chase_player(state: &mut State) {
             if dist <= (playerCollisionRadius + ENEMY_COLLIDER.radius) {
                 println!("GOTTEM!");
                 state.player.isAlive = false;
-                state.player.movementDir = vec2(0.0, 0.0);
+                state.player.player_direction = vec2(0.0, 0.0);
             }
         }
     }

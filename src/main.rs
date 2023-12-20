@@ -6,9 +6,9 @@
 #![allow(clippy::zero_ptr)]
 #![allow(clippy::assign_op_pattern)]
 
+mod aabb;
 mod bullet_store;
 mod capsule;
-mod enemies;
 mod enemy;
 mod floor;
 mod framebuffers;
@@ -29,10 +29,9 @@ use crate::player::Player;
 use crate::sprite_sheet::{SpriteSheet, SpriteSheetSprite};
 use crate::texture_cache::TextureCache;
 use crate::wiggly_bois::draw_wiggly_bois;
-use glam::{vec2, vec3, vec4, Mat4, Vec2, Vec3};
-use glfw::ffi::TRUE;
+use glam::{vec2, vec3, vec4, Mat4, Vec3, Vec4Swizzles};
 use glfw::JoystickId::Joystick1;
-use glfw::{Action, Context, Key, Modifiers, MouseButton};
+use glfw::{Action, Context, Key, MouseButton};
 use log::error;
 use small_gl_core::animator::{AnimationClip, AnimationRepeat};
 use small_gl_core::camera::{Camera, CameraMovement};
@@ -102,8 +101,8 @@ struct State {
     delta_time: f32,
     frame_time: f32,
     first_mouse: bool,
-    last_x: f32,
-    last_y: f32,
+    mouse_x: f32,
+    mouse_y: f32,
     player: Player,
     enemies: Vec<Enemy>,
     viewport_width: i32,
@@ -143,10 +142,6 @@ fn main() {
         let axes = joy.get_axes();
         println!("axes: {:?}", axes)
     }
-
-    // Mouse input
-    let mut mouseClipX = 0.0f32;
-    let mut mouseClipY = 0.0f32;
 
     // Lighting
     let lightDir: Vec3 = vec3(-0.8, 0.0, -1.0).normalize_or_zero();
@@ -292,7 +287,7 @@ fn main() {
         isAlive: true,
         aimTheta: 0.0f32,
         position: vec3(0.0, 0.0, 0.0),
-        movementDir: vec2(0.0, 0.0),
+        player_direction: vec2(0.0, 0.0),
         animation_name: "".to_string(),
         speed: playerSpeed,
     };
@@ -302,8 +297,8 @@ fn main() {
         delta_time: 0.0,
         frame_time: 0.0,
         first_mouse: true,
-        last_x: SCR_WIDTH / 2.0,
-        last_y: SCR_HEIGHT / 2.0,
+        mouse_x: SCR_WIDTH / 2.0,
+        mouse_y: SCR_HEIGHT / 2.0,
         player,
         enemies: vec![],
         viewport_width: viewportWidth,
@@ -343,7 +338,8 @@ fn main() {
         }
 
         unsafe {
-            gl::ClearColor(0.0, 0.02, 0.25, 1.0);
+            //gl::ClearColor(0.0, 0.02, 0.25, 1.0);
+            gl::ClearColor(0.8, 0.82, 0.85, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         }
 
@@ -367,7 +363,7 @@ fn main() {
             bulletImpactSprites.retain(|sprite| sprite.age < sprite_duration);
         }
 
-        bulletStore.update_bullets(&state, &bulletImpactSprites);
+        bulletStore.update_bullets(&mut state, &mut bulletImpactSprites);
 
         if state.player.isAlive {
             enemy_spawner.update(&mut state);
@@ -384,13 +380,15 @@ fn main() {
         if state.player.isAlive {
             let inv = (view.inverse() * projection.inverse()).to_cols_array_2d();
 
-            let t = (inv[0][1] * mouseClipX + inv[1][1] * mouseClipY + inv[3][1]
-                - monsterY * (inv[0][3] * mouseClipX + inv[1][3] * mouseClipX + inv[3][3]))
+            let t = (inv[0][1] * state.mouse_x + inv[1][1] * state.mouse_y + inv[3][1]
+                - monsterY * (inv[0][3] * state.mouse_x + inv[1][3] * state.mouse_x + inv[3][3]))
                 / (inv[2][3] * monsterY - inv[2][1]);
 
-            let s = 1.0 / (inv[0][3] * mouseClipX + inv[1][3] * mouseClipY + inv[2][3] * t + inv[3][3]);
-            let us = mouseClipX * s;
-            let vs = mouseClipY * s;
+            let s = 1.0 / (inv[0][3] * state.mouse_x + inv[1][3] * state.mouse_y + inv[2][3] * t + inv[3][3]);
+
+            let us = state.mouse_x * s;
+            let vs = state.mouse_y * s;
+
             let ts = t * s;
             let worldX = inv[0][0] * us + inv[1][0] * vs + inv[2][0] * ts + inv[3][0] * s;
             let worldZ = inv[0][2] * us + inv[1][2] * vs + inv[2][2] * ts + inv[3][2] * s;
@@ -400,7 +398,7 @@ fn main() {
 
             aimTheta = (dx / dz).atan() + if dz < 0.0 { PI } else { 0.0 };
 
-            if mouseClipX.abs() < 0.005 && mouseClipY.abs() < 0.005 {
+            if state.mouse_x.abs() < 0.005 && state.mouse_y.abs() < 0.005 {
                 aimTheta = 0.0;
             }
         }
@@ -412,10 +410,16 @@ fn main() {
         player_model_transform *= Mat4::from_scale(Vec3::splat(playerModelScale));
         player_model_transform *= Mat4::from_axis_angle(vec3(0.0, 1.0, 0.0), aimTheta);
 
-        let projectile_spawn_point = (player_model_transform * vec4(-20.0, playerModelGunHeight, playerModelGunMuzzleOffset, 1.0)).truncate();
+        let aimRot = Mat4::from_axis_angle(vec3(0.0, 1.0, 0.0), aimTheta);
+
+        let muzzle_point = vec4(-20.0, playerModelGunHeight, playerModelGunMuzzleOffset, 1.0);
+
+        let projectile_spawn_point = (player_model_transform * muzzle_point).xyz();
 
         if state.player.isAlive && state.player.isTryingToFire && (state.player.lastFireTime + fireInterval) < state.frame_time {
+
             println!("firing!");
+
             let mid_direction = vec3(dx, 0.0, dz).normalize();
 
             bulletStore.create_bullets(projectile_spawn_point, mid_direction, spreadAmount);
@@ -429,7 +433,6 @@ fn main() {
 
         // --- draw bullets
         bulletStore.draw_bullets(&instancedTextureShader, &projection_view);
-
 
         // --- draw player with shadows
         {}
@@ -472,7 +475,7 @@ fn main() {
         playerShader.use_shader();
         playerShader.set_vec3("viewPos", &camera_position);
         playerShader.set_mat4("model", &player_model_transform);
-        playerShader.set_mat4("aimRot", &Mat4::IDENTITY);
+        playerShader.set_mat4("aimRot", &aimRot);
         playerShader.set_mat4("projectionView", &projection_view);
 
         playerShader.set_mat4("lightSpaceMatrix", &Mat4::IDENTITY);
@@ -565,7 +568,7 @@ fn handle_window_event(window: &mut glfw::Window, event: glfw::WindowEvent, stat
     if direction_vec.length_squared() > 0.01 {
         state.player.position += direction_vec.normalize() * state.player.speed * state.delta_time;
     }
-    state.player.movementDir = vec2(direction_vec.x, direction_vec.z);
+    state.player.player_direction = vec2(direction_vec.x, direction_vec.z);
 }
 
 // glfw: whenever the window size changed (by OS or user resize) this event fires.
@@ -586,18 +589,18 @@ fn mouse_handler(state: &mut State, xposIn: f64, yposIn: f64) {
     let ypos = yposIn as f32;
 
     if state.first_mouse {
-        state.last_x = xpos;
-        state.last_y = ypos;
+        state.mouse_x = xpos;
+        state.mouse_y = ypos;
         state.first_mouse = false;
     }
 
-    let xoffset = xpos - state.last_x;
-    let yoffset = state.last_y - ypos; // reversed since y-coordinates go from bottom to top
+    let xoffset = xpos - state.mouse_x;
+    let yoffset = state.mouse_y - ypos; // reversed since y-coordinates go from bottom to top
 
-    state.last_x = xpos;
-    state.last_y = ypos;
+    state.mouse_x = xpos;
+    state.mouse_y = ypos;
 
-    state.camera.process_mouse_movement(xoffset, yoffset, true);
+    // state.camera.process_mouse_movement(xoffset, yoffset, true);
 }
 
 fn scroll_handler(state: &mut State, _xoffset: f64, yoffset: f64) {

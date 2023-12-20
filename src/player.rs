@@ -8,7 +8,7 @@ pub struct Player {
     pub isAlive: bool,
     pub aimTheta: f32,
     pub position: Vec3,
-    pub movementDir: Vec2,
+    pub player_direction: Vec2,
     pub animation_name: String,
     pub speed: f32,
 }
@@ -21,7 +21,7 @@ impl Player {
             isAlive: false,
             aimTheta: 0.0,
             position: Default::default(),
-            movementDir: Default::default(),
+            player_direction: Default::default(),
             animation_name: "".to_string(),
             speed: 0.0,
         }

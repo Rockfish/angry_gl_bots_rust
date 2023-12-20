@@ -103,7 +103,9 @@ pub fn distanceBetweenLineSegments(a0: &Vec3, a1: &Vec3, b0: &Vec3, b1: &Vec3) -
 
 /// See https://github.com/icaven/glm/blob/master/glm/gtx/vector_angle.inl
 pub fn oriented_angle(x: Vec3, y: Vec3, ref_axis: Vec3) -> f32 {
+
     let angle = x.dot(y).acos().to_degrees();
+
     if ref_axis.dot(x.cross(y)) < 0.0 {
         -angle
     } else {
