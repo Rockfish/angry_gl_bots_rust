@@ -43,6 +43,7 @@ pub fn create_depth_map_fbo() -> FrameBuffer {
         gl::ReadBuffer(gl::NONE);
         gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
     }
+
     FrameBuffer {
         framebuffer_id: depth_map_fbo,
         texture_id: depth_map_texture,

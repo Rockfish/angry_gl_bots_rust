@@ -84,6 +84,7 @@ impl BulletStore {
 
         let texture_config = TextureConfig {
             flip_v: false,
+            flip_h: true,
             gamma_correction: false,
             filter: TextureFilter::Linear,
             texture_type: TextureType::None,
@@ -176,18 +177,22 @@ impl BulletStore {
 
     pub fn create_bullets(&mut self, position: Vec3, midDir: Vec3, spreadAmount: i32) {
 
-        let direction = midDir.normalize_or_zero();
+        let normalized_direction = midDir.normalize_or_zero();
 
-        // let x = vec3(canonicalDir.x, 0.0, canonicalDir.z).normalize_or_zero();
-        let x = vec3(0.0, 0.0, 1.0); // canonical direction
-        let y = vec3(direction.x, 0.0, direction.z).normalize_or_zero();
+
         let rotVec = vec3(0.0, 1.0, 0.0); // rotate around y
 
+        let x = vec3(canonicalDir.x, 0.0, canonicalDir.z).normalize_or_zero();
+        let y = vec3(normalized_direction.x, 0.0, normalized_direction.z).normalize_or_zero();
+
         // direction angle with respect to the canonical direction
-        let theta = oriented_angle(x, y, rotVec);
+        let theta = oriented_angle(x, y, rotVec) * -1.0;
+
+        println!("theta: {:?}", theta);
 
         let mut midDirQuat = Quat::from_xyzw(1.0, 0.0, 0.0, 0.0);
-        //midDirQuat = glm::rotate(midDirQuat, theta, rotVec);
+
+
         midDirQuat *= Quat::from_axis_angle(rotVec, theta.to_radians());
 
         let startIndex = self.all_bullet_positions.len();
@@ -218,16 +223,14 @@ impl BulletStore {
                 let yQuat = midDirQuat * Quat::from_axis_angle(vec3(0.0, 1.0, 0.0), Rotation_Per_Bullet * ((i - spreadAmount) as f32 / 2.0));
 
                 for j in 0..spreadAmount {
-                    let rotQuat = yQuat * Quat::from_axis_angle(vec3(1.0, 0.0, 0.0), Rotation_Per_Bullet * ((j - spreadAmount) as f32 / 2.0));
+                    let rotQuat = yQuat * Quat::from_axis_angle(vec3(1.0, 0.0, 0.0), -Rotation_Per_Bullet * ((j - spreadAmount) as f32 / 2.0));
 
-                    let dir_glam = rotQuat.mul_vec3(canonicalDir);
-                    // let dir = rotate_by_quat(&canonicalDir, &rotQuat);
+                    let dir_glam = rotQuat.mul_vec3(canonicalDir * -1.0);
 
                     let pos = (i * spreadAmount + j) as usize + startIndex;
 
                     self.all_bullet_positions[pos] = position;
                     self.all_bullet_directions[pos] = dir_glam;
-                    // self.all_bullet_quats[pos] = Quat::IDENTITY;
                     self.all_bullet_quats[pos] = rotQuat;
                 }
             }

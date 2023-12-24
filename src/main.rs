@@ -41,16 +41,15 @@ use small_gl_core::shader::Shader;
 use small_gl_core::texture::{TextureConfig, TextureType, TextureWrap};
 use std::f32::consts::PI;
 use std::rc::Rc;
+use std::thread::sleep;
 use std::time::Duration;
-
-const SCR_WIDTH: f32 = 1000.0;
-const SCR_HEIGHT: f32 = 800.0;
+use small_gl_core::math::{get_world_ray_from_mouse, ray_plane_intersection};
 
 const parallelism: i32 = 4;
 
 // Viewport
-const viewportWidth: i32 = 1500;
-const viewportHeight: i32 = 1000;
+const View_Port_Width: i32 = 1500;
+const View_Port_Height: i32 = 1000;
 
 // Texture units
 const texUnit_playerDiffuse: i32 = 0;
@@ -126,7 +125,7 @@ fn main() {
     glfw.window_hint(glfw::WindowHint::OpenGlForwardCompat(true));
 
     let (mut window, events) = glfw
-        .create_window(viewportWidth as u32, viewportHeight as u32, "LearnOpenGL", glfw::WindowMode::Windowed)
+        .create_window(View_Port_Width as u32, View_Port_Height as u32, "LearnOpenGL", glfw::WindowMode::Windowed)
         .expect("Failed to create GLFW window.");
 
     window.set_all_polling(true);
@@ -253,10 +252,10 @@ fn main() {
     // Framebuffers
 
     let depth_map_fbo = create_depth_map_fbo();
-    let emissions_fbo = create_emission_fbo(viewportWidth, viewportHeight);
-    let scene_fbo = create_scene_fbo(viewportWidth, viewportHeight);
-    let horizontal_blur_fbo = create_horizontal_blur_fbo(viewportWidth, viewportHeight);
-    let vertical_blur_fbo = create_vertical_blur_fbo(viewportWidth, viewportHeight);
+    let emissions_fbo = create_emission_fbo(View_Port_Width, View_Port_Height);
+    let scene_fbo = create_scene_fbo(View_Port_Width, View_Port_Height);
+    let horizontal_blur_fbo = create_horizontal_blur_fbo(View_Port_Width, View_Port_Height);
+    let vertical_blur_fbo = create_vertical_blur_fbo(View_Port_Width, View_Port_Height);
 
     unsafe {
         gl::ActiveTexture(gl::TEXTURE0 + scene_fbo.texture_id);
@@ -297,12 +296,12 @@ fn main() {
         delta_time: 0.0,
         frame_time: 0.0,
         first_mouse: true,
-        mouse_x: SCR_WIDTH / 2.0,
-        mouse_y: SCR_HEIGHT / 2.0,
+        mouse_x: View_Port_Width as f32 / 2.0,
+        mouse_y: View_Port_Height as f32 / 2.0,
         player,
         enemies: vec![],
-        viewport_width: viewportWidth,
-        viewport_height: viewportHeight,
+        viewport_width: View_Port_Width,
+        viewport_height: View_Port_Height,
     };
 
     let mut enemy_spawner = EnemySpawner::new(monsterY);
@@ -324,10 +323,15 @@ fn main() {
 
     println!("Assets loaded. Starting loop.");
 
-    let projection = Mat4::perspective_rh_gl(state.camera.zoom.to_radians(), SCR_WIDTH / SCR_HEIGHT, 0.1, 100.0);
+    let projection = Mat4::perspective_rh_gl(state.camera.zoom.to_radians(), View_Port_Width as f32 / View_Port_Height as f32, 0.1, 100.0);
     let projection_inverse = projection.inverse();
 
+    let mut buffer_ready = false;
+
     while !window.should_close() {
+
+        // sleep(Duration::from_millis(200));
+
         let current_time = glfw.get_time() as f32;
         state.delta_time = current_time - state.frame_time;
         state.frame_time = current_time;
@@ -335,12 +339,6 @@ fn main() {
         glfw.poll_events();
         for (_, event) in glfw::flush_messages(&events) {
             handle_window_event(&mut window, event, &mut state);
-        }
-
-        unsafe {
-            //gl::ClearColor(0.0, 0.02, 0.25, 1.0);
-            gl::ClearColor(0.8, 0.82, 0.85, 1.0);
-            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         }
 
         // --- muzzle flash
@@ -377,7 +375,9 @@ fn main() {
         let mut dx: f32 = 0.0;
         let mut dz: f32 = 0.0;
 
-        if state.player.isAlive {
+        state.player.isAlive = true;
+
+        if state.player.isAlive && buffer_ready {
             let inv = (view.inverse() * projection.inverse()).to_cols_array_2d();
 
             let t = (inv[0][1] * state.mouse_x + inv[1][1] * state.mouse_y + inv[3][1]
@@ -401,6 +401,34 @@ fn main() {
             if state.mouse_x.abs() < 0.005 && state.mouse_y.abs() < 0.005 {
                 aimTheta = 0.0;
             }
+
+            let world_ray = get_world_ray_from_mouse(
+                state.mouse_x,
+                state.mouse_y,
+                View_Port_Width as f32,
+                View_Port_Height as f32,
+                &view,
+                &projection);
+
+            // the xz plane
+            let plane_point = vec3(0.0, 0.0, 0.0);
+            let plane_normal = vec3(0.0, 1.0, 0.0);
+
+            let world_point = ray_plane_intersection(
+                camera_position,
+                world_ray,
+                plane_point,
+                plane_normal,
+            ).unwrap();
+
+            dx = world_point.x - state.player.position.x;
+            dz = world_point.z - state.player.position.z;
+
+            aimTheta = (dx / dz).atan() + if dz < 0.0 { PI } else { 0.0 };
+
+            if state.mouse_x.abs() < 0.005 && state.mouse_y.abs() < 0.005 {
+                aimTheta = 0.0;
+            }
         }
 
         // Todo:
@@ -412,20 +440,28 @@ fn main() {
 
         let aimRot = Mat4::from_axis_angle(vec3(0.0, 1.0, 0.0), aimTheta);
 
-        let muzzle_point = vec4(-20.0, playerModelGunHeight, playerModelGunMuzzleOffset, 1.0);
-
-        let projectile_spawn_point = (player_model_transform * muzzle_point).xyz();
-
         if state.player.isAlive && state.player.isTryingToFire && (state.player.lastFireTime + fireInterval) < state.frame_time {
 
             println!("firing!");
 
+            //let muzzle_point = vec4(-20.0, playerModelGunHeight, playerModelGunMuzzleOffset, 1.0);
+            let muzzle_point = vec4(-5.0, playerModelGunHeight, 210.0, 1.0);
+            let projectile_spawn_point = (player_model_transform * muzzle_point).xyz();
+
             let mid_direction = vec3(dx, 0.0, dz).normalize();
 
-            bulletStore.create_bullets(projectile_spawn_point, mid_direction, spreadAmount);
+            bulletStore.create_bullets(projectile_spawn_point, mid_direction, 5); // spreadAmount);
 
             state.player.lastFireTime = state.frame_time;
             muzzleFlashSpritesAge.push(0.0);
+        }
+
+        // Draw phase
+
+        unsafe {
+            //gl::ClearColor(0.0, 0.02, 0.25, 1.0);
+            gl::ClearColor(0.8, 0.82, 0.85, 1.0);
+            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         }
 
         // --- draw floor
@@ -508,6 +544,8 @@ fn main() {
         wigglyShader.set_vec3("ambient", &ambientColor);
 
         draw_wiggly_bois(&wigglyBoi, &wigglyShader, &mut state);
+
+        buffer_ready = true;
 
         window.swap_buffers();
     }

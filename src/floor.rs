@@ -36,6 +36,7 @@ impl Floor {
     pub fn new(texture_cache: &mut TextureCache, shader: &Rc<Shader>) -> Self {
         let texture_config = TextureConfig {
             flip_v: false,
+            flip_h: false,
             gamma_correction: false,
             filter: TextureFilter::Linear,
             texture_type: TextureType::None,
