@@ -39,12 +39,14 @@ use small_gl_core::camera::{Camera, CameraMovement};
 use small_gl_core::gl;
 use small_gl_core::model::ModelBuilder;
 use small_gl_core::shader::Shader;
-use small_gl_core::texture::{TextureConfig, TextureType, TextureWrap};
+use small_gl_core::texture::{TextureConfig, TextureFilter, TextureType, TextureWrap};
 use std::f32::consts::PI;
 use std::rc::Rc;
 use std::thread::sleep;
 use std::time::Duration;
 use small_gl_core::math::{get_world_ray_from_mouse, ray_plane_intersection};
+use crate::muzzle_flash::MuzzleFlash;
+use crate::quads::create_unitSquareVAO;
 
 const PARALLELISM: i32 = 4;
 
@@ -53,26 +55,26 @@ const VIEW_PORT_WIDTH: i32 = 1500;
 const VIEW_PORT_HEIGHT: i32 = 1000;
 
 // Texture units
-const texUnit_playerDiffuse: i32 = 0;
-const texUnit_gunDiffuse: i32 = 1;
-const texUnit_floorDiffuse: i32 = 2;
-const texUnit_wigglyBoi: i32 = 3;
-const texUnit_bullet: i32 = 4;
-const texUnit_floorNormal: i32 = 5;
-const texUnit_playerNormal: i32 = 6;
-const texUnit_gunNormal: i32 = 7;
-const texUnit_shadowMap: i32 = 8;
-const texUnit_emissionFBO: i32 = 9;
-const texUnit_playerEmission: i32 = 10;
+const texUnit_playerDiffuse: u32 = 0;
+const texUnit_gunDiffuse: u32 = 1;
+const texUnit_floorDiffuse: u32 = 2;
+const texUnit_wigglyBoi: u32 = 3;
+const texUnit_bullet: u32 = 4;
+const texUnit_floorNormal: u32 = 5;
+const texUnit_playerNormal: u32 = 6;
+const texUnit_gunNormal: u32 = 7;
+const texUnit_shadowMap: u32 = 8;
+const texUnit_emissionFBO: u32 = 9;
+const texUnit_playerEmission: u32 = 10;
 const texUnit_gunEmission: i32 = 11;
 const texUnit_scene: i32 = 12;
 const texUnit_horzBlur: i32 = 13;
 const texUnit_vertBlur: i32 = 14;
-const texUnit_impactSpriteSheet: i32 = 15;
-const texUnit_muzzleFlashSpriteSheet: i32 = 16;
-const texUnit_floorSpec: i32 = 18;
-const texUnit_playerSpec: i32 = 19;
-const texUnit_gunSpec: i32 = 20;
+const texUnit_impactSpriteSheet: u32 = 15;
+const texUnit_muzzleFlashSpriteSheet: u32 = 16;
+const texUnit_floorSpec: u32 = 18;
+const texUnit_playerSpec: u32 = 19;
+const texUnit_gunSpec: u32 = 20;
 
 // Player
 const FIRE_INTERVAL: f32 = 0.1; // seconds
@@ -178,6 +180,8 @@ fn main() {
     let simpleDepthShader = Rc::new(Shader::new("shaders/depth_shader.vert", "shaders/depth_shader.frag").unwrap());
     let textureShader = Rc::new(Shader::new("shaders/geom_shader.vert", "shaders/texture_shader.frag").unwrap());
 
+    let sprite_shader = Rc::new(Shader::new("shaders/geom_shader2.vert", "shaders/sprite_shader.frag").unwrap());
+
     let instancedTextureShader = Rc::new(Shader::new("shaders/instanced_texture_shader.vert", "shaders/basic_texture_shader.frag").unwrap());
 
     simpleDepthShader.use_shader();
@@ -216,11 +220,11 @@ fn main() {
 
     let textures_to_load = [
         // from angrygl
-        (
-            texUnit_impactSpriteSheet,
-            TextureType::Diffuse,
-            "angrygl_assets/bullet/impact_spritesheet_with_00.png",
-        ),
+        // (
+        //     texUnit_impactSpriteSheet,
+        //     TextureType::Diffuse,
+        //     "angrygl_assets/bullet/impact_spritesheet_with_00.png",
+        // ),
         (
             texUnit_muzzleFlashSpriteSheet,
             TextureType::Diffuse,
@@ -274,12 +278,21 @@ fn main() {
     // ----------------- Game parts ---------------
     //
 
-    let bulletImpactSpritesheet = SpriteSheet::new(texUnit_impactSpriteSheet, 11, 0.05);
-    let muzzleFlashImpactSpritesheet = SpriteSheet::new(texUnit_muzzleFlashSpriteSheet, 6, 0.05);
+    // load sprite textures the right way
+
+    let texture_impactSpriteSheet = texture_cache.get_or_load_texture("angrygl_assets/bullet/impact_spritesheet_with_00.png", &texture_config).unwrap();
+    let texture_muzzleFlashSpriteSheet = texture_cache.get_or_load_texture("angrygl_assets/Player/muzzle_spritesheet.png", &texture_config).unwrap();
+
+
+    let bulletImpactSpritesheet = SpriteSheet::new(texture_impactSpriteSheet, 11, 0.05);
+    let muzzleFlashImpactSpritesheet = SpriteSheet::new(texture_muzzleFlashSpriteSheet, 6, 0.05);
 
     let mut bulletStore = BulletStore::new(&mut texture_cache);
 
-    // Camera
+    //
+    // Cameras ------------------------
+    //
+
     let cameraFollowVec = vec3(-4.0, 4.3, 0.0);
     let cameraUp = vec3(0.0, 1.0, 0.0);
 
@@ -337,8 +350,13 @@ fn main() {
     let mut aimTheta = 0.0f32;
 
     let mut bulletImpactSprites: Vec<SpriteSheetSprite> = vec![];
+
+    let unit_square_quad = create_unitSquareVAO();
+
     let mut muzzleFlashSpritesAge: Vec<f32> = vec![];
     let mut muzzle_world_position3: Vec3 = Vec3::ZERO;
+    let muzzle_flash = MuzzleFlash::new(unit_square_quad as i32, muzzleFlashImpactSpritesheet.clone());
+
     let mut use_point_light = false;
 
     player_model.play_clip(&idle);
@@ -346,7 +364,7 @@ fn main() {
     state.player.animation_name = String::from(&idle.name);
 
     //
-    // ----------------- render loop ---------------
+    // --------------------------------
     //
 
     println!("Assets loaded. Starting loop.");
@@ -354,14 +372,11 @@ fn main() {
     let game_projection = Mat4::perspective_rh_gl(state.game_camera.zoom.to_radians(), VIEW_PORT_WIDTH as f32 / VIEW_PORT_HEIGHT as f32, 0.1, 100.0);
     let floating_projection = Mat4::perspective_rh_gl(state.floating_camera.zoom.to_radians(), VIEW_PORT_WIDTH as f32 / VIEW_PORT_HEIGHT as f32, 0.1, 100.0);
 
-    let width_half = VIEW_PORT_WIDTH as f32 / 2.0;
-    let height_half = VIEW_PORT_HEIGHT as f32 / 2.0;
+    // ortho zoom
     let width_half = 3.0;
     let height_half = 3.0;
-
     let orthographic_projection = Mat4::orthographic_rh_gl(-width_half, width_half, -height_half, height_half, 0.1, 100.0);
 
-    // let projection_inverse = game_projection.inverse();
 
     let mut buffer_ready = false;
 
@@ -428,7 +443,7 @@ fn main() {
                 let view = Mat4::look_at_rh(vec3(state.player.position.x, 1.0, state.player.position.z), state.player.position, up);
 
                 // side view
-                let view = Mat4::look_at_rh(vec3(0.0, 0.0, -3.0), state.player.position, vec3(0.0, 1.0, 0.0));
+                // let view = Mat4::look_at_rh(vec3(0.0, 0.0, -3.0), state.player.position, vec3(0.0, 1.0, 0.0));
 
                 (orthographic_projection, view)
             }
@@ -532,20 +547,28 @@ fn main() {
         // --- draw player with shadows
         {}
 
+        playerShader.use_shader();
+        let muzzle_transform: Mat4;
+
         if muzzleFlashSpritesAge.len() > 0 {
             // Muzzle pos calc
 
             // Position in original model of gun muzzle
             let point_vec = vec3(197.0, 76.143, -3.054);
+
             let meshes = player_model.meshes.borrow();
             let animator = player_model.animator.borrow();
+
             let gun_mesh = meshes.iter().find(|m| m.name.as_str() == "Gun").unwrap();
             let final_node_matrices = animator.final_node_matrices.borrow();
+
             let gun_transform = final_node_matrices.get(gun_mesh.id as usize).unwrap();
 
             let muzzle = *gun_transform * Mat4::from_translation(point_vec);
+
             // Adjust for player
-            let muzzle_transform = player_model_transform * muzzle;
+            muzzle_transform = player_model_transform * muzzle;
+
             let muzzle_world_position = muzzle_transform * vec4(0.0, 0.0, 0.0, 1.0);
 
             muzzle_world_position3 = vec3(
@@ -553,24 +576,25 @@ fn main() {
                 muzzle_world_position.y / muzzle_world_position.w,
                 muzzle_world_position.z / muzzle_world_position.w,
             );
+
             let mut min_age = 1000f32;
+
             for age in muzzleFlashSpritesAge.iter() {
                 min_age = min_age.min(*age);
             }
+
             use_point_light = min_age < 0.03;
 
             playerShader.set_bool("usePointLight", use_point_light);
             playerShader.set_vec3("pointLight.worldPos", &muzzle_world_position3);
             playerShader.set_vec3("pointLight.color", &muzzle_point_light_color);
         } else {
+            muzzle_transform = Mat4::IDENTITY;
             use_point_light = false;
             playerShader.set_bool("usePointLight", use_point_light);
         }
 
-
-        playerShader.use_shader();
         playerShader.set_mat4("projectionView", &projection_view);
-
         playerShader.set_vec3("viewPos", &state.game_camera.position);
         playerShader.set_mat4("model", &player_model_transform);
         playerShader.set_mat4("aimRot", &aimRot);
@@ -584,8 +608,7 @@ fn main() {
 
 
         if muzzleFlashSpritesAge.len() > 0 {
-
-
+            muzzle_flash.draw_muzzle_flash(&sprite_shader, &projection_view, &muzzle_transform, aimTheta, muzzleFlashSpritesAge.as_slice());
         }
 
 

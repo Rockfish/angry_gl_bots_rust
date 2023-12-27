@@ -20,6 +20,7 @@ impl MuzzleFlash {
     }
 
     pub fn draw_muzzle_flash(&self, sprite_shader: &Rc<Shader>, PV: &Mat4, muzzleTransform: &Mat4, aimTheta: f32, muzzleFlashSpritesAge: &[f32]) {
+
         sprite_shader.use_shader();
 
         unsafe {
@@ -28,16 +29,19 @@ impl MuzzleFlash {
 
             sprite_shader.set_mat4("PV", &PV);
 
+            gl::ActiveTexture(gl::TEXTURE0 + self.muzzleFlashImpactSpritesheet.texture.id);
+            gl::BindTexture(gl::TEXTURE_2D, self.muzzleFlashImpactSpritesheet.texture.id as GLuint);
             gl::BindVertexArray(self.unitSquareVAO as GLuint);
         }
 
         sprite_shader.set_int("numCols", self.muzzleFlashImpactSpritesheet.num_columns);
-        sprite_shader.set_int("spritesheet", self.muzzleFlashImpactSpritesheet.texture_unit);
+        sprite_shader.set_int("spritesheet", self.muzzleFlashImpactSpritesheet.texture.id as i32);
         sprite_shader.set_float("timePerSprite", self.muzzleFlashImpactSpritesheet.time_per_sprite);
 
         let scale = 50.0f32;
 
         let mut model = *muzzleTransform * Mat4::from_scale(vec3(scale, scale, scale));
+
         model *= Mat4::from_rotation_y(0.0f32.to_radians());
         model *= Mat4::from_rotation_x(-90.0f32.to_radians());
         model *= Mat4::from_translation(vec3(0.7f32, 0.0f32, 0.0f32));
