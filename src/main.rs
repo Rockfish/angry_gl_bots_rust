@@ -1,7 +1,7 @@
-#![allow(non_upper_case_globals)]
+// #![allow(non_upper_case_globals)]
 #![allow(dead_code)]
 #![allow(non_snake_case)]
-#![allow(non_camel_case_types)]
+// #![allow(non_camel_case_types)]
 #![allow(unused_assignments)]
 #![allow(clippy::zero_ptr)]
 #![allow(clippy::assign_op_pattern)]
@@ -18,6 +18,7 @@ mod quads;
 mod sprite_sheet;
 mod texture_cache;
 mod wiggly_bois;
+mod muzzle_flash;
 
 extern crate glfw;
 
@@ -45,11 +46,11 @@ use std::thread::sleep;
 use std::time::Duration;
 use small_gl_core::math::{get_world_ray_from_mouse, ray_plane_intersection};
 
-const parallelism: i32 = 4;
+const PARALLELISM: i32 = 4;
 
 // Viewport
-const View_Port_Width: i32 = 1500;
-const View_Port_Height: i32 = 1000;
+const VIEW_PORT_WIDTH: i32 = 1500;
+const VIEW_PORT_HEIGHT: i32 = 1000;
 
 // Texture units
 const texUnit_playerDiffuse: i32 = 0;
@@ -74,29 +75,39 @@ const texUnit_playerSpec: i32 = 19;
 const texUnit_gunSpec: i32 = 20;
 
 // Player
-const fireInterval: f32 = 0.1; // seconds
-const spreadAmount: i32 = 20;
-const playerSpeed: f32 = 1.5;
-const playerCollisionRadius: f32 = 0.35;
+const FIRE_INTERVAL: f32 = 0.1; // seconds
+const SPREAD_AMOUNT: i32 = 20;
+const PLAYER_SPEED: f32 = 1.5;
+const PLAYER_COLLISION_RADIUS: f32 = 0.35;
 
 // Models
-const playerModelScale: f32 = 0.0044;
-const playerModelGunHeight: f32 = 120.0; // un-scaled
-const playerModelGunMuzzleOffset: f32 = 100.0; // un-scaled
-const monsterY: f32 = playerModelScale * playerModelGunHeight;
+const PLAYER_MODEL_SCALE: f32 = 0.0044;
+//const PLAYER_MODEL_GUN_HEIGHT: f32 = 120.0; // un-scaled
+const PLAYER_MODEL_GUN_HEIGHT: f32 = 120.0; // un-scaled
+const PLAYER_MODEL_GUN_MUZZLE_OFFSET: f32 = 100.0; // un-scaled
+const MONSTER_Y: f32 = PLAYER_MODEL_SCALE * PLAYER_MODEL_GUN_HEIGHT;
 
 // Lighting
-const lightFactor: f32 = 0.8;
-const nonBlue: f32 = 0.9;
+const LIGHT_FACTOR: f32 = 0.8;
+const NON_BLUE: f32 = 0.9;
 
-const floorLightFactor: f32 = 0.35;
-const floorNonBlue: f32 = 0.7;
+const FLOOR_LIGHT_FACTOR: f32 = 0.35;
+const FLOOR_NON_BLUE: f32 = 0.7;
 
 // Enemies
-const monsterSpeed: f32 = 0.6;
+const MONSTER_SPEED: f32 = 0.6;
+
+enum CameraType {
+    Game,
+    Floating,
+    Orthographic,
+}
 
 struct State {
-    camera: Camera,
+    game_camera: Camera,
+    floating_camera: Camera,
+    ortho_camera: Camera,
+    active_camera: CameraType,
     delta_time: f32,
     frame_time: f32,
     first_mouse: bool,
@@ -125,7 +136,7 @@ fn main() {
     glfw.window_hint(glfw::WindowHint::OpenGlForwardCompat(true));
 
     let (mut window, events) = glfw
-        .create_window(View_Port_Width as u32, View_Port_Height as u32, "LearnOpenGL", glfw::WindowMode::Windowed)
+        .create_window(VIEW_PORT_WIDTH as u32, VIEW_PORT_HEIGHT as u32, "LearnOpenGL", glfw::WindowMode::Windowed)
         .expect("Failed to create GLFW window.");
 
     window.set_all_polling(true);
@@ -145,26 +156,15 @@ fn main() {
     // Lighting
     let lightDir: Vec3 = vec3(-0.8, 0.0, -1.0).normalize_or_zero();
     let playerLightDir: Vec3 = vec3(-1.0, -1.0, -1.0).normalize_or_zero();
-    let lightColor: Vec3 = lightFactor * 1.0 * vec3(nonBlue * 0.406, nonBlue * 0.723, 1.0);
-    // const lightColor: Vec3 = lightFactor * 1.0 * vec3(0.406, 0.723, 1.0);
-    let floorLightColor: Vec3 = floorLightFactor * 1.0 * vec3(floorNonBlue * 0.406, floorNonBlue * 0.723, 1.0);
-    let floorAmbientColor: Vec3 = floorLightFactor * 0.50 * vec3(floorNonBlue * 0.7, floorNonBlue * 0.7, 0.7);
-    let ambientColor: Vec3 = lightFactor * 0.10 * vec3(nonBlue * 0.7, nonBlue * 0.7, 0.7);
+    let lightColor: Vec3 = LIGHT_FACTOR * 1.0 * vec3(NON_BLUE * 0.406, NON_BLUE * 0.723, 1.0);
+    // const lightColor: Vec3 = LIGHT_FACTOR * 1.0 * vec3(0.406, 0.723, 1.0);
+    let floorLightColor: Vec3 = FLOOR_LIGHT_FACTOR * 1.0 * vec3(FLOOR_NON_BLUE * 0.406, FLOOR_NON_BLUE * 0.723, 1.0);
+    let floorAmbientColor: Vec3 = FLOOR_LIGHT_FACTOR * 0.50 * vec3(FLOOR_NON_BLUE * 0.7, FLOOR_NON_BLUE * 0.7, 0.7);
+    let ambientColor: Vec3 = LIGHT_FACTOR * 0.10 * vec3(NON_BLUE * 0.7, NON_BLUE * 0.7, 0.7);
 
     let muzzle_point_light_color = vec3(1.0, 0.2, 0.0);
 
-    // Camera
-    let cameraFollowVec = vec3(-4.0, 4.3, 0.0);
-    let cameraUp = vec3(0.0, 1.0, 0.0);
 
-    // perspective setting
-    let camera = Camera::camera_vec3_up_yaw_pitch(
-        // vec3(400.0, 400.0, 700.0), for current x,y world
-        vec3(0.0, 20.0, 50.0), // for xz world
-        vec3(0.0, 1.0, 0.0),
-        -90.0, // seems camera starts by looking down the x-axis, so needs to turn left to see the plane
-        -20.0,
-    );
 
     println!("Loading assets");
 
@@ -252,10 +252,10 @@ fn main() {
     // Framebuffers
 
     let depth_map_fbo = create_depth_map_fbo();
-    let emissions_fbo = create_emission_fbo(View_Port_Width, View_Port_Height);
-    let scene_fbo = create_scene_fbo(View_Port_Width, View_Port_Height);
-    let horizontal_blur_fbo = create_horizontal_blur_fbo(View_Port_Width, View_Port_Height);
-    let vertical_blur_fbo = create_vertical_blur_fbo(View_Port_Width, View_Port_Height);
+    let emissions_fbo = create_emission_fbo(VIEW_PORT_WIDTH, VIEW_PORT_HEIGHT);
+    let scene_fbo = create_scene_fbo(VIEW_PORT_WIDTH, VIEW_PORT_HEIGHT);
+    let horizontal_blur_fbo = create_horizontal_blur_fbo(VIEW_PORT_WIDTH, VIEW_PORT_HEIGHT);
+    let vertical_blur_fbo = create_vertical_blur_fbo(VIEW_PORT_WIDTH, VIEW_PORT_HEIGHT);
 
     unsafe {
         gl::ActiveTexture(gl::TEXTURE0 + scene_fbo.texture_id);
@@ -279,6 +279,31 @@ fn main() {
 
     let mut bulletStore = BulletStore::new(&mut texture_cache);
 
+    // Camera
+    let cameraFollowVec = vec3(-4.0, 4.3, 0.0);
+    let cameraUp = vec3(0.0, 1.0, 0.0);
+
+    let game_camera = Camera::camera_vec3_up_yaw_pitch(
+        vec3(0.0, 20.0, 80.0), // for xz world
+        vec3(0.0, 1.0, 0.0),
+        -90.0, // seems camera starts by looking down the x-axis, so needs to turn left to see the plane
+        -20.0,
+    );
+
+    let floating_camera =  Camera::camera_vec3_up_yaw_pitch(
+        vec3(0.0, 10.0, 20.0), // for xz world
+        vec3(0.0, 1.0, 0.0),
+        -90.0, // seems camera starts by looking down the x-axis, so needs to turn left to see the plane
+        -20.0,
+    );
+
+    let ortho_camera = Camera::camera_vec3_up_yaw_pitch(
+        vec3(0.0, 1.0, 0.0),
+        vec3(0.0, 1.0, 0.0),
+        0.0,
+        -90.0,
+    );
+
     // Player
     let mut player = Player {
         lastFireTime: 0.0f32,
@@ -288,23 +313,26 @@ fn main() {
         position: vec3(0.0, 0.0, 0.0),
         player_direction: vec2(0.0, 0.0),
         animation_name: "".to_string(),
-        speed: playerSpeed,
+        speed: PLAYER_SPEED,
     };
 
     let mut state = State {
-        camera,
+        game_camera,
+        floating_camera,
+        ortho_camera,
+        active_camera: CameraType::Game,
         delta_time: 0.0,
         frame_time: 0.0,
         first_mouse: true,
-        mouse_x: View_Port_Width as f32 / 2.0,
-        mouse_y: View_Port_Height as f32 / 2.0,
+        mouse_x: VIEW_PORT_WIDTH as f32 / 2.0,
+        mouse_y: VIEW_PORT_HEIGHT as f32 / 2.0,
         player,
         enemies: vec![],
-        viewport_width: View_Port_Width,
-        viewport_height: View_Port_Height,
+        viewport_width: VIEW_PORT_WIDTH,
+        viewport_height: VIEW_PORT_HEIGHT,
     };
 
-    let mut enemy_spawner = EnemySpawner::new(monsterY);
+    let mut enemy_spawner = EnemySpawner::new(MONSTER_Y);
 
     let mut aimTheta = 0.0f32;
 
@@ -314,8 +342,8 @@ fn main() {
     let mut use_point_light = false;
 
     player_model.play_clip(&idle);
-    player_model.play_clip_with_transition(&forward, Duration::from_secs(6));
-    state.player.animation_name = String::from(&forward.name);
+    player_model.play_clip_with_transition(&idle, Duration::from_secs(6));
+    state.player.animation_name = String::from(&idle.name);
 
     //
     // ----------------- render loop ---------------
@@ -323,8 +351,17 @@ fn main() {
 
     println!("Assets loaded. Starting loop.");
 
-    let projection = Mat4::perspective_rh_gl(state.camera.zoom.to_radians(), View_Port_Width as f32 / View_Port_Height as f32, 0.1, 100.0);
-    let projection_inverse = projection.inverse();
+    let game_projection = Mat4::perspective_rh_gl(state.game_camera.zoom.to_radians(), VIEW_PORT_WIDTH as f32 / VIEW_PORT_HEIGHT as f32, 0.1, 100.0);
+    let floating_projection = Mat4::perspective_rh_gl(state.floating_camera.zoom.to_radians(), VIEW_PORT_WIDTH as f32 / VIEW_PORT_HEIGHT as f32, 0.1, 100.0);
+
+    let width_half = VIEW_PORT_WIDTH as f32 / 2.0;
+    let height_half = VIEW_PORT_HEIGHT as f32 / 2.0;
+    let width_half = 3.0;
+    let height_half = 3.0;
+
+    let orthographic_projection = Mat4::orthographic_rh_gl(-width_half, width_half, -height_half, height_half, 0.1, 100.0);
+
+    // let projection_inverse = game_projection.inverse();
 
     let mut buffer_ready = false;
 
@@ -368,9 +405,36 @@ fn main() {
             chase_player(&mut state);
         }
 
-        let camera_position = state.player.position + cameraFollowVec.clone();
-        let view = Mat4::look_at_rh(camera_position, state.player.position, state.camera.up);
-        let projection_view = projection * view;
+        let game_view = Mat4::look_at_rh(state.game_camera.position, state.player.position, state.game_camera.up);
+
+        let (projection, camera_view) = match state.active_camera {
+            CameraType::Game => {
+                state.game_camera.position = state.player.position + cameraFollowVec.clone();
+                (game_projection, game_view)
+            }
+            CameraType::Floating => {
+                let view = Mat4::look_at_rh(state.floating_camera.position, state.player.position, state.floating_camera.up);
+                (floating_projection, view)
+            }
+            CameraType::Orthographic => {
+                let view = Mat4::look_at_rh(state.ortho_camera.position, state.player.position, state.ortho_camera.up);
+
+                let eye = vec3(0.0, 1.0, 0.0); // Camera positioned above the origin
+                let center = vec3(0.0, 0.0, 0.0); // Looking at the origin
+                let up = vec3(0.0, 0.0, -1.0); // Up direction
+                let view = Mat4::look_at_rh(eye, center, up);
+
+                // top down view
+                let view = Mat4::look_at_rh(vec3(state.player.position.x, 1.0, state.player.position.z), state.player.position, up);
+
+                // side view
+                let view = Mat4::look_at_rh(vec3(0.0, 0.0, -3.0), state.player.position, vec3(0.0, 1.0, 0.0));
+
+                (orthographic_projection, view)
+            }
+        };
+
+        let projection_view = projection * camera_view;
 
         let mut dx: f32 = 0.0;
         let mut dz: f32 = 0.0;
@@ -378,11 +442,12 @@ fn main() {
         state.player.isAlive = true;
 
         if state.player.isAlive && buffer_ready {
-            let inv = (view.inverse() * projection.inverse()).to_cols_array_2d();
+
+            let inv = (game_view.inverse() * game_projection.inverse()).to_cols_array_2d();
 
             let t = (inv[0][1] * state.mouse_x + inv[1][1] * state.mouse_y + inv[3][1]
-                - monsterY * (inv[0][3] * state.mouse_x + inv[1][3] * state.mouse_x + inv[3][3]))
-                / (inv[2][3] * monsterY - inv[2][1]);
+                - MONSTER_Y * (inv[0][3] * state.mouse_x + inv[1][3] * state.mouse_x + inv[3][3]))
+                / (inv[2][3] * MONSTER_Y - inv[2][1]);
 
             let s = 1.0 / (inv[0][3] * state.mouse_x + inv[1][3] * state.mouse_y + inv[2][3] * t + inv[3][3]);
 
@@ -405,17 +470,17 @@ fn main() {
             let world_ray = get_world_ray_from_mouse(
                 state.mouse_x,
                 state.mouse_y,
-                View_Port_Width as f32,
-                View_Port_Height as f32,
-                &view,
-                &projection);
+                VIEW_PORT_WIDTH as f32,
+                VIEW_PORT_HEIGHT as f32,
+                &game_view,
+                &game_projection);
 
             // the xz plane
             let plane_point = vec3(0.0, 0.0, 0.0);
             let plane_normal = vec3(0.0, 1.0, 0.0);
 
             let world_point = ray_plane_intersection(
-                camera_position,
+                state.game_camera.position,
                 world_ray,
                 plane_point,
                 plane_normal,
@@ -434,23 +499,17 @@ fn main() {
         // Todo:
         // player.update_points_for_anim(&mut state);
 
-        let mut player_model_transform = Mat4::from_translation(state.player.position);
-        player_model_transform *= Mat4::from_scale(Vec3::splat(playerModelScale));
-        player_model_transform *= Mat4::from_axis_angle(vec3(0.0, 1.0, 0.0), aimTheta);
-
         let aimRot = Mat4::from_axis_angle(vec3(0.0, 1.0, 0.0), aimTheta);
 
-        if state.player.isAlive && state.player.isTryingToFire && (state.player.lastFireTime + fireInterval) < state.frame_time {
+        let mut player_model_transform = Mat4::from_translation(state.player.position);
+        player_model_transform *= Mat4::from_scale(Vec3::splat(PLAYER_MODEL_SCALE));
+        player_model_transform *= aimRot;
+
+        if state.player.isAlive && state.player.isTryingToFire && (state.player.lastFireTime + FIRE_INTERVAL) < state.frame_time {
 
             println!("firing!");
 
-            //let muzzle_point = vec4(-20.0, playerModelGunHeight, playerModelGunMuzzleOffset, 1.0);
-            let muzzle_point = vec4(-5.0, playerModelGunHeight, 210.0, 1.0);
-            let projectile_spawn_point = (player_model_transform * muzzle_point).xyz();
-
-            let mid_direction = vec3(dx, 0.0, dz).normalize();
-
-            bulletStore.create_bullets(projectile_spawn_point, mid_direction, 5); // spreadAmount);
+            bulletStore.create_bullets(dx, dz, &player_model_transform, 5); // spreadAmount);
 
             state.player.lastFireTime = state.frame_time;
             muzzleFlashSpritesAge.push(0.0);
@@ -508,11 +567,13 @@ fn main() {
             playerShader.set_bool("usePointLight", use_point_light);
         }
 
+
         playerShader.use_shader();
-        playerShader.set_vec3("viewPos", &camera_position);
+        playerShader.set_mat4("projectionView", &projection_view);
+
+        playerShader.set_vec3("viewPos", &state.game_camera.position);
         playerShader.set_mat4("model", &player_model_transform);
         playerShader.set_mat4("aimRot", &aimRot);
-        playerShader.set_mat4("projectionView", &projection_view);
 
         playerShader.set_mat4("lightSpaceMatrix", &Mat4::IDENTITY);
         playerShader.set_bool("useLight", true);
@@ -520,6 +581,13 @@ fn main() {
 
         player_model.update_animation(state.delta_time);
         player_model.render(&playerShader);
+
+
+        if muzzleFlashSpritesAge.len() > 0 {
+
+
+        }
+
 
         if !state.player.isAlive {
             if state.player.animation_name != String::from(&dying.name) {
@@ -561,39 +629,48 @@ fn handle_window_event(window: &mut glfw::Window, event: glfw::WindowEvent, stat
         glfw::WindowEvent::FramebufferSize(width, height) => {
             framebuffer_size_event(window, state, width, height);
         }
+        glfw::WindowEvent::Key(Key::Num1, _, _, modifier) => {
+            state.active_camera = CameraType::Game;
+        }
+        glfw::WindowEvent::Key(Key::Num2, _, _, modifier) => {
+            state.active_camera = CameraType::Floating;
+        }
+        glfw::WindowEvent::Key(Key::Num3, _, _, modifier) => {
+            state.active_camera = CameraType::Orthographic;
+        }
         glfw::WindowEvent::Key(Key::W, _, _, modifier) => {
             if modifier.is_empty() {
                 direction_vec += vec3(1.0, 0.0, 0.0);
             } else {
-                state.camera.process_keyboard(CameraMovement::Forward, state.delta_time);
+                state.floating_camera.process_keyboard(CameraMovement::Forward, state.delta_time);
             }
         }
         glfw::WindowEvent::Key(Key::S, _, _, modifier) => {
             if modifier.is_empty() {
                 direction_vec += vec3(-1.0, 0.0, 0.0);
             } else {
-                state.camera.process_keyboard(CameraMovement::Backward, state.delta_time);
+                state.floating_camera.process_keyboard(CameraMovement::Backward, state.delta_time);
             }
         }
         glfw::WindowEvent::Key(Key::A, _, _, modifier) => {
             if modifier.is_empty() {
                 direction_vec += vec3(0.0, 0.0, -1.0);
             } else {
-                state.camera.process_keyboard(CameraMovement::Left, state.delta_time);
+                state.floating_camera.process_keyboard(CameraMovement::Left, state.delta_time);
             }
         }
         glfw::WindowEvent::Key(Key::D, _, _, modifier) => {
             if modifier.is_empty() {
                 direction_vec += vec3(0.0, 0.0, 1.0);
             } else {
-                state.camera.process_keyboard(CameraMovement::Right, state.delta_time);
+                state.floating_camera.process_keyboard(CameraMovement::Right, state.delta_time);
             }
         }
         glfw::WindowEvent::Key(Key::Q, _, _, modifier) => {
-            state.camera.process_keyboard(CameraMovement::Up, state.delta_time);
+            state.floating_camera.process_keyboard(CameraMovement::Up, state.delta_time);
         }
         glfw::WindowEvent::Key(Key::Z, _, _, modifier) => {
-            state.camera.process_keyboard(CameraMovement::Down, state.delta_time);
+            state.floating_camera.process_keyboard(CameraMovement::Down, state.delta_time);
         }
         glfw::WindowEvent::CursorPos(xpos, ypos) => mouse_handler(state, xpos, ypos),
         glfw::WindowEvent::Scroll(xoffset, ysoffset) => scroll_handler(state, xoffset, ysoffset),
@@ -642,5 +719,5 @@ fn mouse_handler(state: &mut State, xposIn: f64, yposIn: f64) {
 }
 
 fn scroll_handler(state: &mut State, _xoffset: f64, yoffset: f64) {
-    state.camera.process_mouse_scroll(yoffset as f32);
+    state.game_camera.process_mouse_scroll(yoffset as f32);
 }

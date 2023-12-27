@@ -112,3 +112,9 @@ pub fn oriented_angle(x: Vec3, y: Vec3, ref_axis: Vec3) -> f32 {
         angle
     }
 }
+
+/*
+static inline SIMD_CFUNC simd_float2 simd_mix(simd_float2 x, simd_float2 y, simd_float2 t) {
+  return x + t*(y - x);
+}
+ */

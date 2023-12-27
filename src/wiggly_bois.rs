@@ -1,4 +1,4 @@
-use crate::{monsterY, State};
+use crate::{MONSTER_Y, State};
 use glam::{vec3, Mat4, Vec3};
 use small_gl_core::model::Model;
 use small_gl_core::shader::Shader;
@@ -7,7 +7,7 @@ use std::rc::Rc;
 
 pub fn draw_wiggly_bois(wigglyBoi: &Model, shader: &Rc<Shader>, state: &mut State) {
     shader.use_shader();
-    shader.set_vec3("nosePos", &vec3(1.0, monsterY, -2.0));
+    shader.set_vec3("nosePos", &vec3(1.0, MONSTER_Y, -2.0));
     shader.set_float("time", state.frame_time);
 
     // TODO optimise (multithreaded, instancing, SOA, etc..)
@@ -15,6 +15,7 @@ pub fn draw_wiggly_bois(wigglyBoi: &Model, shader: &Rc<Shader>, state: &mut Stat
         let monsterTheta = (e.dir.x / e.dir.z).atan() + (if e.dir.z < 0.0 { 0.0 } else { PI });
 
         let mut model_transform = Mat4::from_translation(e.position);
+
         model_transform *= Mat4::from_scale(Vec3::splat(0.01));
         model_transform *= Mat4::from_axis_angle(vec3(0.0, 1.0, 0.0), monsterTheta);
         model_transform *= Mat4::from_axis_angle(vec3(0.0, 0.0, 1.0), PI);

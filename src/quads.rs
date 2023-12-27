@@ -2,19 +2,23 @@ use small_gl_core::gl::{GLsizei, GLsizeiptr, GLuint, GLvoid};
 use small_gl_core::{gl, null, SIZE_OF_FLOAT};
 
 #[rustfmt::skip]
-const unitSquare: [f32; 30] = [
-    -1.0, -1.0, 0.0, 0.0, 0.0, 1.0, -1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0, -1.0, -1.0, 0.0,
-    0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0, -1.0, 1.0, 0.0, 0.0, 1.0,
+const UNIT_SQUARE: [f32; 30] = [
+    -1.0, -1.0, 0.0, 0.0, 0.0,
+     1.0, -1.0, 0.0, 1.0, 0.0,
+     1.0,  1.0, 0.0, 1.0, 1.0,
+    -1.0, -1.0, 0.0, 0.0, 0.0,
+     1.0,  1.0, 0.0, 1.0, 1.0,
+    -1.0,  1.0, 0.0, 0.0, 1.0,
 ];
 
 #[rustfmt::skip]
-const moreObnoxiousQuad: [f32; 30] = [
+const MORE_OBNOXIOUS_QUAD: [f32; 30] = [
     -1.0, -1.0, -0.9, 0.0, 0.0, 1.0, -1.0, -0.9, 1.0, 0.0, 1.0, 1.0, -0.9, 1.0, 1.0, -1.0, -1.0,
     -0.9, 0.0, 0.0, 1.0, 1.0, -0.9, 1.0, 1.0, -1.0, 1.0, -0.9, 0.0, 1.0,
 ];
 
 #[rustfmt::skip]
-const obnoxiousQuad: [f32; 30] = [
+const OBNOXIOUS_QUAD: [f32; 30] = [
     0.5, 0.5, -0.9, 0.0, 0.0, 1.0, 0.5, -0.9, 1.0, 0.0, 1.0, 1.0, -0.9, 1.0, 1.0, 0.5, 0.5, -0.9,
     0.0, 0.0, 1.0, 1.0, -0.9, 1.0, 1.0, 0.5, 1.0, -0.9, 0.0, 1.0,
 ];
@@ -29,8 +33,8 @@ pub fn create_obnoxiousQuadVAO() -> GLuint {
         gl::BindBuffer(gl::ARRAY_BUFFER, obnoxiousQuadVBO);
         gl::BufferData(
             gl::ARRAY_BUFFER,
-            (obnoxiousQuad.len() * SIZE_OF_FLOAT) as GLsizeiptr,
-            obnoxiousQuad.as_ptr() as *const GLvoid,
+            (OBNOXIOUS_QUAD.len() * SIZE_OF_FLOAT) as GLsizeiptr,
+            OBNOXIOUS_QUAD.as_ptr() as *const GLvoid,
             gl::STATIC_DRAW,
         );
         gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, std::ptr::null::<GLvoid>());
@@ -58,8 +62,8 @@ pub fn create_unitSquareVAO() -> GLuint {
         gl::BindBuffer(gl::ARRAY_BUFFER, unitSquareVBO);
         gl::BufferData(
             gl::ARRAY_BUFFER,
-            (unitSquare.len() * SIZE_OF_FLOAT) as GLsizeiptr,
-            unitSquare.as_ptr() as *const GLvoid,
+            (UNIT_SQUARE.len() * SIZE_OF_FLOAT) as GLsizeiptr,
+            UNIT_SQUARE.as_ptr() as *const GLvoid,
             gl::STATIC_DRAW,
         );
         gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, std::ptr::null::<GLvoid>());
@@ -87,8 +91,8 @@ pub fn create_moreObnoxiousQuadVAO() -> GLuint {
         gl::BindBuffer(gl::ARRAY_BUFFER, moreObnoxiousQuadVBO);
         gl::BufferData(
             gl::ARRAY_BUFFER,
-            (moreObnoxiousQuad.len() * SIZE_OF_FLOAT) as GLsizeiptr,
-            moreObnoxiousQuad.as_ptr() as *const GLvoid,
+            (MORE_OBNOXIOUS_QUAD.len() * SIZE_OF_FLOAT) as GLsizeiptr,
+            MORE_OBNOXIOUS_QUAD.as_ptr() as *const GLvoid,
             gl::STATIC_DRAW,
         );
         gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, null!());

@@ -99,7 +99,10 @@ impl Floor {
         // self.shader.setVec3("pointLight.worldPos", muzzleWorldPos3);
         // self.shader.setVec3("pointLight.color", muzzlePointLightColor);
 
+        // angle floor
         let model = Mat4::from_axis_angle(vec3(0.0, 1.0, 0.0), 45.0f32.to_radians());
+
+        let model = Mat4::IDENTITY;
 
         self.shader.set_bool("useLight", false);
         self.shader.set_vec3("ambient", ambientColor);

@@ -4,8 +4,8 @@ use crate::enemy::{Enemy, ENEMY_COLLIDER};
 use crate::geom::{distanceBetweenLineSegments, oriented_angle};
 use crate::sprite_sheet::SpriteSheetSprite;
 use crate::texture_cache::TextureCache;
-use crate::State;
-use glam::{vec3, Mat4, Quat, Vec3};
+use crate::{PLAYER_MODEL_GUN_HEIGHT, State};
+use glam::{vec3, Mat4, Quat, Vec3, vec4, Vec4Swizzles};
 use small_gl_core::gl::{GLsizei, GLsizeiptr, GLuint, GLvoid};
 use small_gl_core::shader::Shader;
 use small_gl_core::texture::{Texture, TextureConfig, TextureFilter, TextureType, TextureWrap};
@@ -41,33 +41,43 @@ pub struct BulletStore {
     pub texUnit_bullet: Rc<Texture>,
 }
 
-//const bulletScale: f32 = 0.3;
-const bulletScale: f32 = 1.0;
-const bulletLifetime: f32 = 1.0;
+//const BULLET_SCALE: f32 = 0.3;
+const BULLET_SCALE: f32 = 1.0;
+const BULLET_LIFETIME: f32 = 1.0;
 // seconds
-const bulletSpeed: f32 = 15.0;
+const BULLET_SPEED: f32 = 15.0;
 // Game units per second
-const Rotation_Per_Bullet: f32 = 3.0 * PI / 180.0;
+const ROTATION_PER_BULLET: f32 = 3.0 * PI / 180.0;
 
-const scaleVec: Vec3 = vec3(bulletScale, bulletScale, bulletScale);
-const bulletNormal: Vec3 = vec3(0.0, 1.0, 0.0);
-const canonicalDir: Vec3 = vec3(0.0, 0.0, 1.0);
+const SCALE_VEC: Vec3 = vec3(BULLET_SCALE, BULLET_SCALE, BULLET_SCALE);
+const BULLET_NORMAL: Vec3 = vec3(0.0, 1.0, 0.0);
+const CANONICAL_DIR: Vec3 = vec3(0.0, 0.0, 1.0);
 
 const BULLET_COLLIDER: Capsule = Capsule { height: 0.3, radius: 0.03 };
 
-const bulletEnemyMaxCollisionDist: f32 = BULLET_COLLIDER.height / 2.0 + BULLET_COLLIDER.radius + ENEMY_COLLIDER.height / 2.0 + ENEMY_COLLIDER.radius;
+const BULLET_ENEMY_MAX_COLLISION_DIST: f32 = BULLET_COLLIDER.height / 2.0 + BULLET_COLLIDER.radius + ENEMY_COLLIDER.height / 2.0 + ENEMY_COLLIDER.radius;
 
 #[rustfmt::skip]
-const bullet_vertices: [f32; 20] = [
+const BULLET_VERTICES: [f32; 20] = [
     // Positions                                        // Tex Coords
-    bulletScale * (-0.243), 0.1, bulletScale * (-0.5),  1.0, 0.0,
-    bulletScale * (-0.243), 0.1, bulletScale * 0.5,     0.0, 0.0,
-    bulletScale * 0.243,    0.1, bulletScale * 0.5,     0.0, 1.0,
-    bulletScale * 0.243,    0.1, bulletScale * (-0.5),  1.0, 1.0
+    BULLET_SCALE * (-0.243), 0.1, BULLET_SCALE * (-0.5),  1.0, 0.0,
+    BULLET_SCALE * (-0.243), 0.1, BULLET_SCALE * 0.5,     0.0, 0.0,
+    BULLET_SCALE * 0.243,    0.1, BULLET_SCALE * 0.5,     0.0, 1.0,
+    BULLET_SCALE * 0.243,    0.1, BULLET_SCALE * (-0.5),  1.0, 1.0
+];
+
+// vertical surface to see the bullets from the side
+#[rustfmt::skip]
+const BULLET_VERTICES_V: [f32; 20] = [
+    // Positions                                        // Tex Coords
+    0.1, BULLET_SCALE * (-0.243), BULLET_SCALE * (-0.5),  1.0, 0.0,
+    0.1, BULLET_SCALE * (-0.243), BULLET_SCALE * 0.5,     0.0, 0.0,
+    0.1, BULLET_SCALE * 0.243,    BULLET_SCALE * 0.5,     0.0, 1.0,
+    0.1, BULLET_SCALE * 0.243,    BULLET_SCALE * (-0.5),  1.0, 1.0
 ];
 
 #[rustfmt::skip]
-const bullet_indices: [i32; 6] = [
+const BULLET_INDICES: [i32; 6] = [
     0, 1, 2,
     0, 2, 3
 ];
@@ -111,8 +121,8 @@ impl BulletStore {
             // vertices data
             gl::BufferData(
                 gl::ARRAY_BUFFER,
-                (bullet_vertices.len() * SIZE_OF_FLOAT) as GLsizeiptr,
-                bullet_vertices.as_ptr() as *const GLvoid,
+                (BULLET_VERTICES.len() * SIZE_OF_FLOAT) as GLsizeiptr,
+                BULLET_VERTICES.as_ptr() as *const GLvoid,
                 gl::STATIC_DRAW,
             );
 
@@ -120,8 +130,8 @@ impl BulletStore {
             gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, bullet_ebo);
             gl::BufferData(
                 gl::ELEMENT_ARRAY_BUFFER,
-                (bullet_indices.len() * SIZE_OF_FLOAT) as GLsizeiptr,
-                bullet_indices.as_ptr() as *const GLvoid,
+                (BULLET_INDICES.len() * SIZE_OF_FLOAT) as GLsizeiptr,
+                BULLET_INDICES.as_ptr() as *const GLvoid,
                 gl::STATIC_DRAW,
             );
 
@@ -175,14 +185,20 @@ impl BulletStore {
         }
     }
 
-    pub fn create_bullets(&mut self, position: Vec3, midDir: Vec3, spreadAmount: i32) {
+    pub fn create_bullets(&mut self, dx: f32, dz: f32, player_transform: &Mat4, spreadAmount: i32) {
 
-        let normalized_direction = midDir.normalize_or_zero();
+
+        let muzzle_point = vec4(-25.0, PLAYER_MODEL_GUN_HEIGHT, 190.0, 1.0);
+        let projectile_spawn_point = (*player_transform * muzzle_point).xyz();
+
+        let mid_direction = vec3(dx, 0.0, dz).normalize();
+
+        let normalized_direction = mid_direction.normalize_or_zero();
 
 
         let rotVec = vec3(0.0, 1.0, 0.0); // rotate around y
 
-        let x = vec3(canonicalDir.x, 0.0, canonicalDir.z).normalize_or_zero();
+        let x = vec3(CANONICAL_DIR.x, 0.0, CANONICAL_DIR.z).normalize_or_zero();
         let y = vec3(normalized_direction.x, 0.0, normalized_direction.z).normalize_or_zero();
 
         // direction angle with respect to the canonical direction
@@ -192,14 +208,13 @@ impl BulletStore {
 
         let mut midDirQuat = Quat::from_xyzw(1.0, 0.0, 0.0, 0.0);
 
-
         midDirQuat *= Quat::from_axis_angle(rotVec, theta.to_radians());
 
         let startIndex = self.all_bullet_positions.len();
 
         let bulletGroupSize = spreadAmount * spreadAmount;
 
-        let bullet_group = BulletGroup::new(startIndex, bulletGroupSize, bulletLifetime);
+        let bullet_group = BulletGroup::new(startIndex, bulletGroupSize, BULLET_LIFETIME);
 
         self.all_bullet_positions.resize(startIndex + bulletGroupSize as usize, Vec3::default());
         self.all_bullet_quats.resize(startIndex + bulletGroupSize as usize, Quat::default());
@@ -220,16 +235,16 @@ impl BulletStore {
             // futures.emplace_back(threadPool->enqueue([this, &position, &midDirQuat, spreadAmount, startIndex, &g, iStart, iEnd]() {
 
             for i in iStart..iEnd {
-                let yQuat = midDirQuat * Quat::from_axis_angle(vec3(0.0, 1.0, 0.0), Rotation_Per_Bullet * ((i - spreadAmount) as f32 / 2.0));
+                let yQuat = midDirQuat * Quat::from_axis_angle(vec3(0.0, 1.0, 0.0), ROTATION_PER_BULLET * ((i - spreadAmount) as f32 / 2.0));
 
                 for j in 0..spreadAmount {
-                    let rotQuat = yQuat * Quat::from_axis_angle(vec3(1.0, 0.0, 0.0), -Rotation_Per_Bullet * ((j - spreadAmount) as f32 / 2.0));
+                    let rotQuat = yQuat * Quat::from_axis_angle(vec3(1.0, 0.0, 0.0), -ROTATION_PER_BULLET * ((j - spreadAmount) as f32 / 2.0) - PI/45.0); // add slight up
 
-                    let dir_glam = rotQuat.mul_vec3(canonicalDir * -1.0);
+                    let dir_glam = rotQuat.mul_vec3(CANONICAL_DIR * -1.0);
 
                     let pos = (i * spreadAmount + j) as usize + startIndex;
 
-                    self.all_bullet_positions[pos] = position;
+                    self.all_bullet_positions[pos] = projectile_spawn_point;
                     self.all_bullet_directions[pos] = dir_glam;
                     self.all_bullet_quats[pos] = rotQuat;
                 }
@@ -242,7 +257,7 @@ impl BulletStore {
         let use_aabb = state.enemies.len() > 0;
         let num_sub_groups = if use_aabb { 9 } else { 1 };
 
-        let delta_position_magnitude = state.delta_time * bulletSpeed;
+        let delta_position_magnitude = state.delta_time * BULLET_SPEED;
 
         let mut first_live_bullet_group: usize = 0;
 
@@ -281,7 +296,7 @@ impl BulletStore {
                             subgroup_bound_box.expand_to_include(self.all_bullet_positions[bullet_index as usize]);
                         }
 
-                        subgroup_bound_box.expand_by(bulletEnemyMaxCollisionDist);
+                        subgroup_bound_box.expand_by(BULLET_ENEMY_MAX_COLLISION_DIST);
                     }
 
                     for i in 0..state.enemies.len() {
@@ -356,6 +371,9 @@ impl BulletStore {
 
         shader.set_bool("useLight", false);
 
+        // changes direction of bullets
+        // let model = *projectionView * Mat4::from_rotation_x(90.0f32.to_radians());
+
         shader.set_mat4("PV", projectionView);
 
         // let scaled_pv = *projectionView * Mat4::from_scale(vec3(2.0, 2.0, 2.0));
@@ -407,7 +425,7 @@ impl BulletStore {
 }
 
 fn bullet_collides_with_enemy(position: &Vec3, direction: &Vec3, enemy: &Enemy) -> bool {
-    if position.distance(enemy.position) > bulletEnemyMaxCollisionDist {
+    if position.distance(enemy.position) > BULLET_ENEMY_MAX_COLLISION_DIST {
         false;
     }
 
@@ -462,6 +480,35 @@ fn hamilton_product_quat_quat(first: Quat, other: &Quat) -> Quat {
     }
 }
 
-fn temp(q: Quat) {
-    let v = q.xyz();
+#[cfg(test)]
+mod tests {
+    use glam::vec3;
+    use crate::geom::oriented_angle;
+
+    #[test]
+    fn test_oriented_rotation() {
+
+        let canonical_dir = vec3(0.0, 0.0, -1.0);
+
+        for angle in 0..361 {
+            let (sin, cos) = (angle as f32).to_radians().sin_cos();
+            let x = sin;
+            let z = cos;
+
+            let direction = vec3(x, 0.0, z);
+
+            let normalized_direction = direction; //.normalize_or_zero();
+
+            let rotVec = vec3(0.0, 1.0, 0.0); // rotate around y
+
+            let x = vec3(canonical_dir.x, 0.0, canonical_dir.z).normalize_or_zero();
+            let y = vec3(normalized_direction.x, 0.0, normalized_direction.z).normalize_or_zero();
+
+            // direction angle with respect to the canonical direction
+            let theta = oriented_angle(x, y, rotVec) * -1.0;
+
+            println!("angle: {}  direction: {:?}   theta: {:?}", angle, normalized_direction, angle);
+        }
+
+    }
 }
