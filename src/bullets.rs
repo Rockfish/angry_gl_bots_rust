@@ -40,8 +40,8 @@ pub struct BulletStore {
     bullet_texture: Texture,
 }
 
-//const BULLET_SCALE: f32 = 0.3;
-const BULLET_SCALE: f32 = 1.0;
+const BULLET_SCALE: f32 = 0.3;
+// const BULLET_SCALE: f32 = 1.0;
 const BULLET_LIFETIME: f32 = 1.0;
 // seconds
 const BULLET_SPEED: f32 = 15.0;
@@ -56,13 +56,17 @@ const BULLET_COLLIDER: Capsule = Capsule { height: 0.3, radius: 0.03 };
 
 const BULLET_ENEMY_MAX_COLLISION_DIST: f32 = BULLET_COLLIDER.height / 2.0 + BULLET_COLLIDER.radius + ENEMY_COLLIDER.height / 2.0 + ENEMY_COLLIDER.radius;
 
+// Trim off margin around the bullet image
+const TEXTURE_MARGIN: f32 = 0.0625;
+// const TEXTURE_MARGIN: f32 = 0.0;
+
 #[rustfmt::skip]
-const BULLET_VERTICES: [f32; 20] = [
+const BULLET_VERTICES_Z_ZERO: [f32; 20] = [
     // Positions                                        // Tex Coords
-    BULLET_SCALE * (-0.243), 0.1, BULLET_SCALE * (-0.5),  1.0, 0.0,
-    BULLET_SCALE * (-0.243), 0.1, BULLET_SCALE * 0.5,     0.0, 0.0,
-    BULLET_SCALE * 0.243,    0.1, BULLET_SCALE * 0.5,     0.0, 1.0,
-    BULLET_SCALE * 0.243,    0.1, BULLET_SCALE * (-0.5),  1.0, 1.0
+    BULLET_SCALE * (-0.243), 0.1, BULLET_SCALE * (-1.0),  1.0 - TEXTURE_MARGIN, 0.0 + TEXTURE_MARGIN,
+    BULLET_SCALE * (-0.243), 0.1, BULLET_SCALE * 0.0,     0.0 + TEXTURE_MARGIN, 0.0 + TEXTURE_MARGIN,
+    BULLET_SCALE * 0.243,    0.1, BULLET_SCALE * 0.0,     0.0 + TEXTURE_MARGIN, 1.0 - TEXTURE_MARGIN,
+    BULLET_SCALE * 0.243,    0.1, BULLET_SCALE * (-1.0),  1.0 - TEXTURE_MARGIN, 1.0 - TEXTURE_MARGIN,
 ];
 
 // vertical surface to see the bullets from the side
@@ -105,7 +109,10 @@ impl BulletStore {
         //     .unwrap();
 
         //let texUnit_bullet = Texture::new("angrygl_assets/bullet/bullet_texture_transparent.png", &texture_config).unwrap();
-        let bullet_texture = Texture::new("angrygl_assets/bullet/red_bullet_transparent.png", &texture_config).unwrap();
+        // let bullet_texture = Texture::new("angrygl_assets/bullet/red_bullet_transparent.png", &texture_config).unwrap();
+        let bullet_texture = Texture::new("angrygl_assets/bullet/red_and_green_bullet_transparent.png", &texture_config).unwrap();
+
+        let vertices = BULLET_VERTICES_Z_ZERO;
 
         unsafe {
             gl::GenVertexArrays(1, &mut bullet_vao);
@@ -119,8 +126,8 @@ impl BulletStore {
             // vertices data
             gl::BufferData(
                 gl::ARRAY_BUFFER,
-                (BULLET_VERTICES.len() * SIZE_OF_FLOAT) as GLsizeiptr,
-                BULLET_VERTICES.as_ptr() as *const GLvoid,
+                (vertices.len() * SIZE_OF_FLOAT) as GLsizeiptr,
+                vertices.as_ptr() as *const GLvoid,
                 gl::STATIC_DRAW,
             );
 
@@ -191,7 +198,8 @@ impl BulletStore {
         // let projectile_spawn_point = muzzle_position;
 
         let mut spawn_point = *muzzle_transform;
-        spawn_point *= Mat4::from_translation(vec3(100.7f32, -20.0f32, 0.0f32)); // adjust for texture
+        //spawn_point *= Mat4::from_translation(vec3(100.7f32, -20.0f32, 0.0f32)); // adjust for texture
+        spawn_point *= Mat4::from_translation(vec3(0.0f32, -20.0f32, 0.0f32)); // adjust for texture
 
         let muzzle_world_position = spawn_point * vec4(0.0, 0.0, 0.0, 1.0);
 
@@ -239,11 +247,14 @@ impl BulletStore {
 
             // futures.emplace_back(threadPool->enqueue([this, &position, &midDirQuat, spreadAmount, startIndex, &g, iStart, iEnd]() {
 
+            let spread_centering = ROTATION_PER_BULLET * (spreadAmount as f32 - 1.0) / 4.0;
+            // let spread_centering = 0.0;
+
             for i in iStart..iEnd {
-                let yQuat = midDirQuat * Quat::from_axis_angle(vec3(0.0, 1.0, 0.0), ROTATION_PER_BULLET * ((i - spreadAmount) as f32 / 2.0));
+                let yQuat = midDirQuat * Quat::from_axis_angle(vec3(0.0, 1.0, 0.0), ROTATION_PER_BULLET * ((i - spreadAmount) as f32 / 2.0) + spread_centering);
 
                 for j in 0..spreadAmount {
-                    let rotQuat = yQuat * Quat::from_axis_angle(vec3(1.0, 0.0, 0.0), -ROTATION_PER_BULLET * ((j - spreadAmount) as f32 / 2.0) - PI/45.0); // add slight up
+                    let rotQuat = yQuat * Quat::from_axis_angle(vec3(1.0, 0.0, 0.0), ROTATION_PER_BULLET * ((j - spreadAmount) as f32 / 2.0) + spread_centering); //PI/45.0); // add slight up
 
                     let dir_glam = rotQuat.mul_vec3(CANONICAL_DIR * -1.0);
 

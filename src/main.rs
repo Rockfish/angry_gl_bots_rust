@@ -82,7 +82,6 @@ const PLAYER_COLLISION_RADIUS: f32 = 0.35;
 // Models
 const PLAYER_MODEL_SCALE: f32 = 0.0044;
 //const PLAYER_MODEL_GUN_HEIGHT: f32 = 120.0; // un-scaled
-//const PLAYER_MODEL_GUN_HEIGHT: f32 = 120.0; // un-scaled
 const PLAYER_MODEL_GUN_HEIGHT: f32 = 110.0; // un-scaled
 const PLAYER_MODEL_GUN_MUZZLE_OFFSET: f32 = 100.0; // un-scaled
 const MONSTER_Y: f32 = PLAYER_MODEL_SCALE * PLAYER_MODEL_GUN_HEIGHT;
@@ -416,7 +415,7 @@ fn main() {
                 let view = Mat4::look_at_rh(vec3(state.player.position.x, 1.0, state.player.position.z), state.player.position, up);
 
                 // side view
-                let view = Mat4::look_at_rh(vec3(0.0, 0.0, -3.0), state.player.position, vec3(0.0, 1.0, 0.0));
+                // let view = Mat4::look_at_rh(vec3(0.0, 0.0, -3.0), state.player.position, vec3(0.0, 1.0, 0.0));
 
                 (orthographic_projection, view)
             }
@@ -499,7 +498,7 @@ fn main() {
 
             println!("firing!");
 
-            bulletStore.create_bullets(dx, dz, &muzzle_transform, SPREAD_AMOUNT);
+            bulletStore.create_bullets(dx, dz, &muzzle_transform, 10); //SPREAD_AMOUNT);
 
             state.player.lastFireTime = state.frame_time;
             muzzleFlashSpritesAge.push(0.0);
@@ -571,7 +570,6 @@ fn main() {
             playerShader.set_vec3("pointLight.worldPos", &muzzle_world_position3);
             playerShader.set_vec3("pointLight.color", &muzzle_point_light_color);
         } else {
-            // muzzle_transform = Mat4::IDENTITY;
             use_point_light = false;
             playerShader.set_bool("usePointLight", use_point_light);
         }
@@ -590,7 +588,7 @@ fn main() {
 
 
         if muzzleFlashSpritesAge.len() > 0 {
-            muzzle_flash.draw_muzzle_flash(&sprite_shader, &projection_view, &muzzle_transform, aimTheta, muzzleFlashSpritesAge.as_slice());
+            muzzle_flash.draw(&sprite_shader, &projection_view, &muzzle_transform, aimTheta, muzzleFlashSpritesAge.as_slice());
         }
 
         if !state.player.isAlive {

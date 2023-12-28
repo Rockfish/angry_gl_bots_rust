@@ -20,7 +20,7 @@ impl MuzzleFlash {
         }
     }
 
-    pub fn draw_muzzle_flash(&self, sprite_shader: &Rc<Shader>, PV: &Mat4, muzzleTransform: &Mat4, aimTheta: f32, muzzleFlashSpritesAge: &[f32]) {
+    pub fn draw(&self, sprite_shader: &Rc<Shader>, PV: &Mat4, muzzleTransform: &Mat4, aimTheta: f32, muzzleFlashSpritesAge: &[f32]) {
 
         sprite_shader.use_shader();
 

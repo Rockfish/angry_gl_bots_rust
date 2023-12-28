@@ -1,4 +1,3 @@
-use std::rc::Rc;
 use glam::Vec3;
 use small_gl_core::texture::Texture;
 

@@ -27,6 +27,10 @@ void main() {
     color = vec4(directionLight.color, 1.0) * color * diff + vec4(amb, 1.0);
   }
 
+  if (color.a < 0.1) {
+    discard;;
+  }
+
   FragColor = color;
 //  FragColor = vec4(0.1, 0.8, 0.1, 1.0);
 }
