@@ -5,13 +5,13 @@ use small_gl_core::texture::Texture;
 
 #[derive(Debug, Clone)]
 pub struct SpriteSheet {
-    pub texture: Rc<Texture>,
+    pub texture: Texture,
     pub num_columns: i32,
     pub time_per_sprite: f32,
 }
 
 impl SpriteSheet {
-    pub fn new(texture_unit: Rc<Texture>, num_columns: i32, time_per_sprite: f32) -> Self {
+    pub fn new(texture_unit: Texture, num_columns: i32, time_per_sprite: f32) -> Self {
         SpriteSheet {
             texture: texture_unit,
             num_columns,

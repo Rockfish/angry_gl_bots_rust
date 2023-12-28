@@ -7,7 +7,7 @@
 #![allow(clippy::assign_op_pattern)]
 
 mod aabb;
-mod bullet_store;
+mod bullets;
 mod capsule;
 mod enemy;
 mod floor;
@@ -17,19 +17,16 @@ mod player;
 mod quads;
 mod sprite_sheet;
 mod texture_cache;
-mod wiggly_bois;
 mod muzzle_flash;
 
 extern crate glfw;
 
-use crate::bullet_store::BulletStore;
-use crate::enemy::{chase_player, Enemy, EnemySpawner};
+use crate::bullets::BulletStore;
+use crate::enemy::{chase_player, draw_enemies, Enemy, EnemySpawner};
 use crate::floor::Floor;
 use crate::framebuffers::{create_depth_map_fbo, create_emission_fbo, create_horizontal_blur_fbo, create_scene_fbo, create_vertical_blur_fbo};
 use crate::player::Player;
 use crate::sprite_sheet::{SpriteSheet, SpriteSheetSprite};
-use crate::texture_cache::TextureCache;
-use crate::wiggly_bois::draw_wiggly_bois;
 use glam::{vec2, vec3, vec4, Mat4, Vec3, Vec4Swizzles};
 use glfw::JoystickId::Joystick1;
 use glfw::{Action, Context, Key, MouseButton};
@@ -39,13 +36,13 @@ use small_gl_core::camera::{Camera, CameraMovement};
 use small_gl_core::gl;
 use small_gl_core::model::ModelBuilder;
 use small_gl_core::shader::Shader;
-use small_gl_core::texture::{TextureConfig, TextureFilter, TextureType, TextureWrap};
+use small_gl_core::texture::{Texture, TextureConfig, TextureFilter, TextureType, TextureWrap};
 use std::f32::consts::PI;
 use std::rc::Rc;
 use std::thread::sleep;
 use std::time::Duration;
 use small_gl_core::math::{get_world_ray_from_mouse, ray_plane_intersection};
-use crate::muzzle_flash::MuzzleFlash;
+use crate::muzzle_flash::{get_muzzle_position, MuzzleFlash};
 use crate::quads::create_unitSquareVAO;
 
 const PARALLELISM: i32 = 4;
@@ -53,28 +50,28 @@ const PARALLELISM: i32 = 4;
 // Viewport
 const VIEW_PORT_WIDTH: i32 = 1500;
 const VIEW_PORT_HEIGHT: i32 = 1000;
-
-// Texture units
-const texUnit_playerDiffuse: u32 = 0;
-const texUnit_gunDiffuse: u32 = 1;
-const texUnit_floorDiffuse: u32 = 2;
-const texUnit_wigglyBoi: u32 = 3;
-const texUnit_bullet: u32 = 4;
-const texUnit_floorNormal: u32 = 5;
-const texUnit_playerNormal: u32 = 6;
-const texUnit_gunNormal: u32 = 7;
-const texUnit_shadowMap: u32 = 8;
-const texUnit_emissionFBO: u32 = 9;
-const texUnit_playerEmission: u32 = 10;
-const texUnit_gunEmission: i32 = 11;
-const texUnit_scene: i32 = 12;
-const texUnit_horzBlur: i32 = 13;
-const texUnit_vertBlur: i32 = 14;
-const texUnit_impactSpriteSheet: u32 = 15;
-const texUnit_muzzleFlashSpriteSheet: u32 = 16;
-const texUnit_floorSpec: u32 = 18;
-const texUnit_playerSpec: u32 = 19;
-const texUnit_gunSpec: u32 = 20;
+//
+// // Texture units
+// const texUnit_playerDiffuse: u32 = 0;
+// const texUnit_gunDiffuse: u32 = 1;
+// const texUnit_floorDiffuse: u32 = 2;
+// const texUnit_wigglyBoi: u32 = 3;
+// const texUnit_bullet: u32 = 4;
+// const texUnit_floorNormal: u32 = 5;
+// const texUnit_playerNormal: u32 = 6;
+// const texUnit_gunNormal: u32 = 7;
+// const texUnit_shadowMap: u32 = 8;
+// const texUnit_emissionFBO: u32 = 9;
+// const texUnit_playerEmission: u32 = 10;
+// const texUnit_gunEmission: i32 = 11;
+// const texUnit_scene: i32 = 12;
+// const texUnit_horzBlur: i32 = 13;
+// const texUnit_vertBlur: i32 = 14;
+// const texUnit_impactSpriteSheet: u32 = 15;
+// const texUnit_muzzleFlashSpriteSheet: u32 = 16;
+// const texUnit_floorSpec: u32 = 18;
+// const texUnit_playerSpec: u32 = 19;
+// const texUnit_gunSpec: u32 = 20;
 
 // Player
 const FIRE_INTERVAL: f32 = 0.1; // seconds
@@ -85,7 +82,8 @@ const PLAYER_COLLISION_RADIUS: f32 = 0.35;
 // Models
 const PLAYER_MODEL_SCALE: f32 = 0.0044;
 //const PLAYER_MODEL_GUN_HEIGHT: f32 = 120.0; // un-scaled
-const PLAYER_MODEL_GUN_HEIGHT: f32 = 120.0; // un-scaled
+//const PLAYER_MODEL_GUN_HEIGHT: f32 = 120.0; // un-scaled
+const PLAYER_MODEL_GUN_HEIGHT: f32 = 110.0; // un-scaled
 const PLAYER_MODEL_GUN_MUZZLE_OFFSET: f32 = 100.0; // un-scaled
 const MONSTER_Y: f32 = PLAYER_MODEL_SCALE * PLAYER_MODEL_GUN_HEIGHT;
 
@@ -194,7 +192,6 @@ fn main() {
     playerShader.set_vec3("directionLight.color", &lightColor);
     playerShader.set_vec3("ambient", &ambientColor);
 
-    // player model textures handled externally
     let player_model = ModelBuilder::new("player", "assets/Models/Player/Player.fbx")
         .add_texture("Player", TextureType::Diffuse, "Textures/Player_D.tga")
         .add_texture("Player", TextureType::Specular, "Textures/Player_M.tga")
@@ -216,42 +213,19 @@ fn main() {
 
     let wigglyBoi = ModelBuilder::new("dog", "assets/Models/Eeldog/EelDog.FBX").build().unwrap();
 
-    // logTimeSince("shaders loaded ", appStart);
+    // let mut texture_cache = TextureCache::new();
+    let texture_config = TextureConfig::new().set_wrap(TextureWrap::Repeat);
 
-    let textures_to_load = [
-        // from angrygl
-        // (
-        //     texUnit_impactSpriteSheet,
-        //     TextureType::Diffuse,
-        //     "angrygl_assets/bullet/impact_spritesheet_with_00.png",
-        // ),
-        (
-            texUnit_muzzleFlashSpriteSheet,
-            TextureType::Diffuse,
-            "angrygl_assets/Player/muzzle_spritesheet.png",
-        ),
-        //(texUnit_bullet, TextureType::Diffuse, "angrygl_assets/bullet/BulletTexture2.png"), todo: need to create this one. view video for details
-        // from Unity
-        (texUnit_bullet, TextureType::Diffuse, "assets/Models/Bullet/Textures/BulletTexture.png"), // using this temporarily to get code right
-        // (texUnit_wigglyBoi, TextureType::Diffuse, "assets/Models/Eeldog/Eeldog_Green_Albedo.png"),
-        (texUnit_floorNormal, TextureType::Normals, "assets/Models/Floor N.png"),
-        (texUnit_floorDiffuse, TextureType::Diffuse, "assets/Models/Floor D.png"),
-        (texUnit_floorSpec, TextureType::Specular, "assets/Models/Floor M.png"),
-    ];
+    // for (_unit, texture_type, path) in textures_to_load {
+    //     texture_config.texture_type = texture_type;
+    //     let texture = texture_cache.get_or_load_texture(path, &texture_config);
+    //     match texture {
+    //         Ok(_) => println!("Loaded: {}", path),
+    //         Err(e) => println!("Error loading: {} {}", path, e),
+    //     }
+    // }
 
-    let mut texture_cache = TextureCache::new();
-    let mut texture_config = TextureConfig::new().set_wrap(TextureWrap::Repeat);
-
-    for (_unit, texture_type, path) in textures_to_load {
-        texture_config.texture_type = texture_type;
-        let texture = texture_cache.get_or_load_texture(path, &texture_config);
-        match texture {
-            Ok(_) => println!("Loaded: {}", path),
-            Err(e) => println!("Error loading: {} {}", path, e),
-        }
-    }
-
-    let floor = Floor::new(&mut texture_cache, &basicTextureShader);
+    let floor = Floor::new(&basicTextureShader);
 
     // Framebuffers
 
@@ -280,14 +254,13 @@ fn main() {
 
     // load sprite textures the right way
 
-    let texture_impactSpriteSheet = texture_cache.get_or_load_texture("angrygl_assets/bullet/impact_spritesheet_with_00.png", &texture_config).unwrap();
-    let texture_muzzleFlashSpriteSheet = texture_cache.get_or_load_texture("angrygl_assets/Player/muzzle_spritesheet.png", &texture_config).unwrap();
-
+    let texture_impactSpriteSheet = Texture::new("angrygl_assets/bullet/impact_spritesheet_with_00.png", &texture_config).unwrap();
+    let texture_muzzleFlashSpriteSheet =Texture::new("angrygl_assets/Player/muzzle_spritesheet.png", &texture_config).unwrap();
 
     let bulletImpactSpritesheet = SpriteSheet::new(texture_impactSpriteSheet, 11, 0.05);
     let muzzleFlashImpactSpritesheet = SpriteSheet::new(texture_muzzleFlashSpriteSheet, 6, 0.05);
 
-    let mut bulletStore = BulletStore::new(&mut texture_cache);
+    let mut bulletStore = BulletStore::new();
 
     //
     // Cameras ------------------------
@@ -318,7 +291,7 @@ fn main() {
     );
 
     // Player
-    let mut player = Player {
+    let player = Player {
         lastFireTime: 0.0f32,
         isTryingToFire: false,
         isAlive: true,
@@ -354,7 +327,7 @@ fn main() {
     let unit_square_quad = create_unitSquareVAO();
 
     let mut muzzleFlashSpritesAge: Vec<f32> = vec![];
-    let mut muzzle_world_position3: Vec3 = Vec3::ZERO;
+    // let mut muzzle_world_position3: Vec3 = Vec3::ZERO;
     let muzzle_flash = MuzzleFlash::new(unit_square_quad as i32, muzzleFlashImpactSpritesheet.clone());
 
     let mut use_point_light = false;
@@ -437,13 +410,13 @@ fn main() {
                 let eye = vec3(0.0, 1.0, 0.0); // Camera positioned above the origin
                 let center = vec3(0.0, 0.0, 0.0); // Looking at the origin
                 let up = vec3(0.0, 0.0, -1.0); // Up direction
-                let view = Mat4::look_at_rh(eye, center, up);
+                // let view = Mat4::look_at_rh(eye, center, up);
 
                 // top down view
                 let view = Mat4::look_at_rh(vec3(state.player.position.x, 1.0, state.player.position.z), state.player.position, up);
 
                 // side view
-                // let view = Mat4::look_at_rh(vec3(0.0, 0.0, -3.0), state.player.position, vec3(0.0, 1.0, 0.0));
+                let view = Mat4::look_at_rh(vec3(0.0, 0.0, -3.0), state.player.position, vec3(0.0, 1.0, 0.0));
 
                 (orthographic_projection, view)
             }
@@ -458,29 +431,29 @@ fn main() {
 
         if state.player.isAlive && buffer_ready {
 
-            let inv = (game_view.inverse() * game_projection.inverse()).to_cols_array_2d();
-
-            let t = (inv[0][1] * state.mouse_x + inv[1][1] * state.mouse_y + inv[3][1]
-                - MONSTER_Y * (inv[0][3] * state.mouse_x + inv[1][3] * state.mouse_x + inv[3][3]))
-                / (inv[2][3] * MONSTER_Y - inv[2][1]);
-
-            let s = 1.0 / (inv[0][3] * state.mouse_x + inv[1][3] * state.mouse_y + inv[2][3] * t + inv[3][3]);
-
-            let us = state.mouse_x * s;
-            let vs = state.mouse_y * s;
-
-            let ts = t * s;
-            let worldX = inv[0][0] * us + inv[1][0] * vs + inv[2][0] * ts + inv[3][0] * s;
-            let worldZ = inv[0][2] * us + inv[1][2] * vs + inv[2][2] * ts + inv[3][2] * s;
-
-            dx = worldX - state.player.position.x;
-            dz = worldZ - state.player.position.z;
-
-            aimTheta = (dx / dz).atan() + if dz < 0.0 { PI } else { 0.0 };
-
-            if state.mouse_x.abs() < 0.005 && state.mouse_y.abs() < 0.005 {
-                aimTheta = 0.0;
-            }
+            // let inv = (game_view.inverse() * game_projection.inverse()).to_cols_array_2d();
+            //
+            // let t = (inv[0][1] * state.mouse_x + inv[1][1] * state.mouse_y + inv[3][1]
+            //     - MONSTER_Y * (inv[0][3] * state.mouse_x + inv[1][3] * state.mouse_x + inv[3][3]))
+            //     / (inv[2][3] * MONSTER_Y - inv[2][1]);
+            //
+            // let s = 1.0 / (inv[0][3] * state.mouse_x + inv[1][3] * state.mouse_y + inv[2][3] * t + inv[3][3]);
+            //
+            // let us = state.mouse_x * s;
+            // let vs = state.mouse_y * s;
+            //
+            // let ts = t * s;
+            // let worldX = inv[0][0] * us + inv[1][0] * vs + inv[2][0] * ts + inv[3][0] * s;
+            // let worldZ = inv[0][2] * us + inv[1][2] * vs + inv[2][2] * ts + inv[3][2] * s;
+            //
+            // dx = worldX - state.player.position.x;
+            // dz = worldZ - state.player.position.z;
+            //
+            // aimTheta = (dx / dz).atan() + if dz < 0.0 { PI } else { 0.0 };
+            //
+            // if state.mouse_x.abs() < 0.005 && state.mouse_y.abs() < 0.005 {
+            //     aimTheta = 0.0;
+            // }
 
             let world_ray = get_world_ray_from_mouse(
                 state.mouse_x,
@@ -520,11 +493,13 @@ fn main() {
         player_model_transform *= Mat4::from_scale(Vec3::splat(PLAYER_MODEL_SCALE));
         player_model_transform *= aimRot;
 
+        let muzzle_transform = get_muzzle_position(&player_model, &player_model_transform);
+
         if state.player.isAlive && state.player.isTryingToFire && (state.player.lastFireTime + FIRE_INTERVAL) < state.frame_time {
 
             println!("firing!");
 
-            bulletStore.create_bullets(dx, dz, &player_model_transform, 5); // spreadAmount);
+            bulletStore.create_bullets(dx, dz, &muzzle_transform, SPREAD_AMOUNT);
 
             state.player.lastFireTime = state.frame_time;
             muzzleFlashSpritesAge.push(0.0);
@@ -548,34 +523,33 @@ fn main() {
         {}
 
         playerShader.use_shader();
-        let muzzle_transform: Mat4;
 
         if muzzleFlashSpritesAge.len() > 0 {
-            // Muzzle pos calc
-
-            // Position in original model of gun muzzle
-            let point_vec = vec3(197.0, 76.143, -3.054);
-
-            let meshes = player_model.meshes.borrow();
-            let animator = player_model.animator.borrow();
-
-            let gun_mesh = meshes.iter().find(|m| m.name.as_str() == "Gun").unwrap();
-            let final_node_matrices = animator.final_node_matrices.borrow();
-
-            let gun_transform = final_node_matrices.get(gun_mesh.id as usize).unwrap();
-
-            let muzzle = *gun_transform * Mat4::from_translation(point_vec);
-
-            // Adjust for player
-            muzzle_transform = player_model_transform * muzzle;
-
-            let muzzle_world_position = muzzle_transform * vec4(0.0, 0.0, 0.0, 1.0);
-
-            muzzle_world_position3 = vec3(
-                muzzle_world_position.x / muzzle_world_position.w,
-                muzzle_world_position.y / muzzle_world_position.w,
-                muzzle_world_position.z / muzzle_world_position.w,
-            );
+            // // Muzzle pos calc
+            //
+            // // Position in original model of gun muzzle
+            // let point_vec = vec3(197.0, 76.143, -3.054);
+            //
+            // let meshes = player_model.meshes.borrow();
+            // let animator = player_model.animator.borrow();
+            //
+            // let gun_mesh = meshes.iter().find(|m| m.name.as_str() == "Gun").unwrap();
+            // let final_node_matrices = animator.final_node_matrices.borrow();
+            //
+            // let gun_transform = final_node_matrices.get(gun_mesh.id as usize).unwrap();
+            //
+            // let muzzle = *gun_transform * Mat4::from_translation(point_vec);
+            //
+            // // Adjust for player
+            // muzzle_transform = player_model_transform * muzzle;
+            //
+            // let muzzle_world_position = muzzle_transform * vec4(0.0, 0.0, 0.0, 1.0);
+            //
+            // muzzle_world_position3 = vec3(
+            //     muzzle_world_position.x / muzzle_world_position.w,
+            //     muzzle_world_position.y / muzzle_world_position.w,
+            //     muzzle_world_position.z / muzzle_world_position.w,
+            // );
 
             let mut min_age = 1000f32;
 
@@ -585,11 +559,19 @@ fn main() {
 
             use_point_light = min_age < 0.03;
 
+            let muzzle_world_position = muzzle_transform * vec4(0.0, 0.0, 0.0, 1.0);
+
+            let muzzle_world_position3 = vec3(
+                muzzle_world_position.x / muzzle_world_position.w,
+                muzzle_world_position.y / muzzle_world_position.w,
+                muzzle_world_position.z / muzzle_world_position.w,
+            );
+
             playerShader.set_bool("usePointLight", use_point_light);
             playerShader.set_vec3("pointLight.worldPos", &muzzle_world_position3);
             playerShader.set_vec3("pointLight.color", &muzzle_point_light_color);
         } else {
-            muzzle_transform = Mat4::IDENTITY;
+            // muzzle_transform = Mat4::IDENTITY;
             use_point_light = false;
             playerShader.set_bool("usePointLight", use_point_light);
         }
@@ -610,7 +592,6 @@ fn main() {
         if muzzleFlashSpritesAge.len() > 0 {
             muzzle_flash.draw_muzzle_flash(&sprite_shader, &projection_view, &muzzle_transform, aimTheta, muzzleFlashSpritesAge.as_slice());
         }
-
 
         if !state.player.isAlive {
             if state.player.animation_name != String::from(&dying.name) {
@@ -634,7 +615,7 @@ fn main() {
         wigglyShader.set_bool("useLight", false);
         wigglyShader.set_vec3("ambient", &ambientColor);
 
-        draw_wiggly_bois(&wigglyBoi, &wigglyShader, &mut state);
+        draw_enemies(&wigglyBoi, &wigglyShader, &mut state);
 
         buffer_ready = true;
 
@@ -652,13 +633,13 @@ fn handle_window_event(window: &mut glfw::Window, event: glfw::WindowEvent, stat
         glfw::WindowEvent::FramebufferSize(width, height) => {
             framebuffer_size_event(window, state, width, height);
         }
-        glfw::WindowEvent::Key(Key::Num1, _, _, modifier) => {
+        glfw::WindowEvent::Key(Key::Num1, _, _, _) => {
             state.active_camera = CameraType::Game;
         }
-        glfw::WindowEvent::Key(Key::Num2, _, _, modifier) => {
+        glfw::WindowEvent::Key(Key::Num2, _, _, _) => {
             state.active_camera = CameraType::Floating;
         }
-        glfw::WindowEvent::Key(Key::Num3, _, _, modifier) => {
+        glfw::WindowEvent::Key(Key::Num3, _, _, _) => {
             state.active_camera = CameraType::Orthographic;
         }
         glfw::WindowEvent::Key(Key::W, _, _, modifier) => {
@@ -689,10 +670,10 @@ fn handle_window_event(window: &mut glfw::Window, event: glfw::WindowEvent, stat
                 state.floating_camera.process_keyboard(CameraMovement::Right, state.delta_time);
             }
         }
-        glfw::WindowEvent::Key(Key::Q, _, _, modifier) => {
+        glfw::WindowEvent::Key(Key::Q, _, _, _) => {
             state.floating_camera.process_keyboard(CameraMovement::Up, state.delta_time);
         }
-        glfw::WindowEvent::Key(Key::Z, _, _, modifier) => {
+        glfw::WindowEvent::Key(Key::Z, _, _, _) => {
             state.floating_camera.process_keyboard(CameraMovement::Down, state.delta_time);
         }
         glfw::WindowEvent::CursorPos(xpos, ypos) => mouse_handler(state, xpos, ypos),

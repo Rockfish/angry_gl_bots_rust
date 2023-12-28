@@ -3,7 +3,6 @@ use crate::capsule::Capsule;
 use crate::enemy::{Enemy, ENEMY_COLLIDER};
 use crate::geom::{distanceBetweenLineSegments, oriented_angle};
 use crate::sprite_sheet::SpriteSheetSprite;
-use crate::texture_cache::TextureCache;
 use crate::{PLAYER_MODEL_GUN_HEIGHT, State};
 use glam::{vec3, Mat4, Quat, Vec3, vec4, Vec4Swizzles};
 use small_gl_core::gl::{GLsizei, GLsizeiptr, GLuint, GLvoid};
@@ -38,7 +37,7 @@ pub struct BulletStore {
     instance_vbo: GLuint,
     offset_vbo: GLuint,
     bullet_groups: Vec<BulletGroup>,
-    pub texUnit_bullet: Rc<Texture>,
+    bullet_texture: Texture,
 }
 
 //const BULLET_SCALE: f32 = 0.3;
@@ -83,7 +82,7 @@ const BULLET_INDICES: [i32; 6] = [
 ];
 
 impl BulletStore {
-    pub fn new(texture_cache: &mut TextureCache) -> Self {
+    pub fn new() -> Self {
         // initialize_buffer_and_create
         let mut bullet_vao: GLuint = 0;
         let mut bullet_vbo: GLuint = 0;
@@ -105,9 +104,8 @@ impl BulletStore {
         //     .get_or_load_texture("assets/Models/Bullet/Textures/BulletTexture.png", &texture_config)
         //     .unwrap();
 
-        let texUnit_bullet = texture_cache
-            .get_or_load_texture("angrygl_assets/bullet/bullet_texture_transparent.png", &texture_config)
-            .unwrap();
+        //let texUnit_bullet = Texture::new("angrygl_assets/bullet/bullet_texture_transparent.png", &texture_config).unwrap();
+        let bullet_texture = Texture::new("angrygl_assets/bullet/red_bullet_transparent.png", &texture_config).unwrap();
 
         unsafe {
             gl::GenVertexArrays(1, &mut bullet_vao);
@@ -181,20 +179,27 @@ impl BulletStore {
             instance_vbo,
             offset_vbo,
             bullet_groups: vec![],
-            texUnit_bullet,
+            bullet_texture,
         }
     }
 
-    pub fn create_bullets(&mut self, dx: f32, dz: f32, player_transform: &Mat4, spreadAmount: i32) {
+    // pub fn create_bullets(&mut self, dx: f32, dz: f32, player_transform: &Mat4, spreadAmount: i32) {
+    pub fn create_bullets(&mut self, dx: f32, dz: f32, muzzle_transform: &Mat4, spreadAmount: i32) {
 
+        // let muzzle_point = vec4(-25.0, PLAYER_MODEL_GUN_HEIGHT, 190.0, 1.0);
+        // let projectile_spawn_point = (*player_transform * muzzle_point).xyz();
+        // let projectile_spawn_point = muzzle_position;
 
-        let muzzle_point = vec4(-25.0, PLAYER_MODEL_GUN_HEIGHT, 190.0, 1.0);
-        let projectile_spawn_point = (*player_transform * muzzle_point).xyz();
+        let mut spawn_point = *muzzle_transform;
+        spawn_point *= Mat4::from_translation(vec3(100.7f32, -20.0f32, 0.0f32)); // adjust for texture
+
+        let muzzle_world_position = spawn_point * vec4(0.0, 0.0, 0.0, 1.0);
+
+        let projectile_spawn_point = muzzle_world_position.xyz();
 
         let mid_direction = vec3(dx, 0.0, dz).normalize();
 
         let normalized_direction = mid_direction.normalize_or_zero();
-
 
         let rotVec = vec3(0.0, 1.0, 0.0); // rotate around y
 
@@ -349,35 +354,22 @@ impl BulletStore {
     }
 
     pub fn draw_bullets(&mut self, shader: &Rc<Shader>, projectionView: &Mat4) {
-        // self.all_bullet_positions.clear();
-        // self.all_quats.clear();
-        //
-        // let position = vec3(0.0, 1.0, 0.0);
-        //
-        // self.all_bullet_positions.push(position);
-        // self.all_quats.push(Quat::IDENTITY);
 
         unsafe {
             gl::Enable(gl::BLEND);
             gl::DepthMask(gl::FALSE);
-            gl::ActiveTexture(gl::TEXTURE0 + self.texUnit_bullet.id);
-            gl::BindTexture(gl::TEXTURE_2D, self.texUnit_bullet.id);
+            gl::ActiveTexture(gl::TEXTURE0 + self.bullet_texture.id);
+            gl::BindTexture(gl::TEXTURE_2D, self.bullet_texture.id);
         }
 
         shader.use_shader();
 
-        shader.set_int("texture_diffuse", self.texUnit_bullet.id as i32);
-        shader.set_int("texture_normal", self.texUnit_bullet.id as i32);
+        shader.set_int("texture_diffuse", self.bullet_texture.id as i32);
+        shader.set_int("texture_normal", self.bullet_texture.id as i32);
 
         shader.set_bool("useLight", false);
 
-        // changes direction of bullets
-        // let model = *projectionView * Mat4::from_rotation_x(90.0f32.to_radians());
-
         shader.set_mat4("PV", projectionView);
-
-        // let scaled_pv = *projectionView * Mat4::from_scale(vec3(2.0, 2.0, 2.0));
-        // shader.set_mat4("PV", &scaled_pv);
 
         self.renderBulletSprites();
 

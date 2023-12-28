@@ -53,7 +53,5 @@ void main() {
 
     gl_Position = PV * vec4(rotatedInPos + posOffset, 1.0);
 
-    //  gl_Position = PV * vec4(inPos + posOffset, 1.0);  // hack
-
     TexCoord = inTexCoord;
 }

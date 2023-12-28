@@ -3,37 +3,36 @@ use glam::{vec3, Mat4, Vec3};
 use small_gl_core::gl::{GLsizei, GLsizeiptr, GLuint, GLvoid};
 use small_gl_core::shader::Shader;
 use small_gl_core::texture::{Texture, TextureConfig, TextureFilter, TextureType, TextureWrap};
-use small_gl_core::{gl, null, size_of_floats, SIZE_OF_FLOAT};
-use std::mem;
+use small_gl_core::{gl, null, SIZE_OF_FLOAT};
 use std::rc::Rc;
 
-const floorSize: f32 = 100.0;
-const tileSize: f32 = 1.0;
-const numTileWraps: f32 = floorSize / tileSize;
+const FLOOR_SIZE: f32 = 100.0;
+const TILE_SIZE: f32 = 1.0;
+const NUM_TILE_WRAPS: f32 = FLOOR_SIZE / TILE_SIZE;
 
 #[rustfmt::skip]
-const floorVertices: [f32; 30] = [
+const FLOOR_VERTICES: [f32; 30] = [
     // Vertices                               // TexCoord
-    -floorSize / 2.0, 0.0, -floorSize / 2.0, 0.0, 0.0,
-    -floorSize / 2.0, 0.0, floorSize / 2.0, numTileWraps, 0.0,
-    floorSize / 2.0, 0.0, floorSize / 2.0, numTileWraps, numTileWraps,
-    -floorSize / 2.0, 0.0, -floorSize / 2.0, 0.0, 0.0,
-    floorSize / 2.0, 0.0, floorSize / 2.0, numTileWraps, numTileWraps,
-    floorSize / 2.0, 0.0, -floorSize / 2.0, 0.0, numTileWraps
+    -FLOOR_SIZE / 2.0, 0.0, -FLOOR_SIZE / 2.0, 0.0, 0.0,
+    -FLOOR_SIZE / 2.0, 0.0, FLOOR_SIZE / 2.0, NUM_TILE_WRAPS, 0.0,
+    FLOOR_SIZE / 2.0, 0.0, FLOOR_SIZE / 2.0, NUM_TILE_WRAPS, NUM_TILE_WRAPS,
+    -FLOOR_SIZE / 2.0, 0.0, -FLOOR_SIZE / 2.0, 0.0, 0.0,
+    FLOOR_SIZE / 2.0, 0.0, FLOOR_SIZE / 2.0, NUM_TILE_WRAPS, NUM_TILE_WRAPS,
+    FLOOR_SIZE / 2.0, 0.0, -FLOOR_SIZE / 2.0, 0.0, NUM_TILE_WRAPS
 ];
 
 pub struct Floor {
     pub floorVAO: GLuint,
     pub floorVBO: GLuint,
     pub shader: Rc<Shader>,
-    pub texUnit_floorDiffuse: Rc<Texture>,
-    pub texUnit_floorNormal: Rc<Texture>,
-    pub texUnit_floorSpec: Rc<Texture>,
-    pub texUnit_shadowMap: Rc<Texture>,
+    pub texture_floorDiffuse: Texture,
+    pub texture_floorNormal: Texture,
+    pub texture_floorSpec: Texture,
+    pub texture_shadowMap: Texture,
 }
 
 impl Floor {
-    pub fn new(texture_cache: &mut TextureCache, shader: &Rc<Shader>) -> Self {
+    pub fn new(shader: &Rc<Shader>) -> Self {
         let texture_config = TextureConfig {
             flip_v: false,
             flip_h: false,
@@ -43,10 +42,10 @@ impl Floor {
             wrap: TextureWrap::Repeat,
         };
 
-        let texUnit_floorDiffuse = texture_cache.get_or_load_texture("assets/Models/Floor D.png", &texture_config).unwrap();
-        let texUnit_floorNormal = texture_cache.get_or_load_texture("assets/Models/Floor N.png", &texture_config).unwrap();
-        let texUnit_floorSpec = texture_cache.get_or_load_texture("assets/Models/Floor M.png", &texture_config).unwrap();
-        let texUnit_shadowMap = texture_cache.get_or_load_texture("assets/Models/Floor D.png", &texture_config).unwrap();
+        let texUnit_floorDiffuse = Texture::new("assets/Models/Floor D.png", &texture_config).unwrap();
+        let texUnit_floorNormal = Texture::new("assets/Models/Floor N.png", &texture_config).unwrap();
+        let texUnit_floorSpec =Texture::new("assets/Models/Floor M.png", &texture_config).unwrap();
+        let texUnit_shadowMap = Texture::new("assets/Models/Floor D.png", &texture_config).unwrap();
 
         let mut floorVAO: GLuint = 0;
         let mut floorVBO: GLuint = 0;
@@ -57,8 +56,8 @@ impl Floor {
             gl::BindBuffer(gl::ARRAY_BUFFER, floorVBO);
             gl::BufferData(
                 gl::ARRAY_BUFFER,
-                (floorVertices.len() * SIZE_OF_FLOAT) as GLsizeiptr,
-                floorVertices.as_ptr() as *const GLvoid,
+                (FLOOR_VERTICES.len() * SIZE_OF_FLOAT) as GLsizeiptr,
+                FLOOR_VERTICES.as_ptr() as *const GLvoid,
                 gl::STATIC_DRAW,
             );
             gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, null!());
@@ -78,10 +77,10 @@ impl Floor {
             floorVAO,
             floorVBO,
             shader: shader.clone(),
-            texUnit_floorDiffuse,
-            texUnit_floorNormal,
-            texUnit_floorSpec,
-            texUnit_shadowMap,
+            texture_floorDiffuse: texUnit_floorDiffuse,
+            texture_floorNormal: texUnit_floorNormal,
+            texture_floorSpec: texUnit_floorSpec,
+            texture_shadowMap: texUnit_shadowMap,
         }
     }
 
@@ -89,10 +88,10 @@ impl Floor {
         //}, light_space_matrix: Option<Mat4>) {
         self.shader.use_shader();
 
-        set_texture(&self.shader, 0, "texture_diffuse", &self.texUnit_floorDiffuse);
-        set_texture(&self.shader, 1, "texture_normal", &self.texUnit_floorNormal);
-        set_texture(&self.shader, 2, "texture_spec", &self.texUnit_floorSpec);
-        set_texture(&self.shader, 3, "shadow_map", &self.texUnit_shadowMap);
+        set_texture(&self.shader, 0, "texture_diffuse", &self.texture_floorDiffuse);
+        set_texture(&self.shader, 1, "texture_normal", &self.texture_floorNormal);
+        set_texture(&self.shader, 2, "texture_spec", &self.texture_floorSpec);
+        set_texture(&self.shader, 3, "shadow_map", &self.texture_shadowMap);
 
         // self.shader.setBool("useLight", light_space_matrix.is_some());
         // self.shader.setBool("useSpec", light_space_matrix.is_some());
@@ -117,7 +116,7 @@ impl Floor {
     }
 }
 
-pub fn set_texture(shader: &Rc<Shader>, texture_unit: i32, sample_name: &str, texture: &Rc<Texture>) {
+pub fn set_texture(shader: &Rc<Shader>, texture_unit: i32, sample_name: &str, texture: &Texture) {
     unsafe {
         gl::ActiveTexture(gl::TEXTURE0 + texture_unit as u32);
         gl::BindTexture(gl::TEXTURE_2D, texture.id);
