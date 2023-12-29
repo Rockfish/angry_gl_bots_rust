@@ -99,10 +99,12 @@ const MONSTER_SPEED: f32 = 0.6;
 enum CameraType {
     Game,
     Floating,
-    Orthographic,
+    TopDown,
+    Side,
 }
 
 struct State {
+    run: bool,
     game_camera: Camera,
     floating_camera: Camera,
     ortho_camera: Camera,
@@ -187,6 +189,7 @@ fn main() {
     playerShader.use_shader();
 
     let playerLightSpaceMatrixLocation = playerShader.get_uniform_location("lightSpaceMatrix");
+
     playerShader.set_vec3("directionLight.dir", &playerLightDir);
     playerShader.set_vec3("directionLight.color", &lightColor);
     playerShader.set_vec3("ambient", &ambientColor);
@@ -302,6 +305,7 @@ fn main() {
     };
 
     let mut state = State {
+        run: true,
         game_camera,
         floating_camera,
         ortho_camera,
@@ -355,9 +359,12 @@ fn main() {
     while !window.should_close() {
 
         // sleep(Duration::from_millis(200));
-
         let current_time = glfw.get_time() as f32;
-        state.delta_time = current_time - state.frame_time;
+        if state.run {
+            state.delta_time = current_time - state.frame_time;
+        } else {
+            state.delta_time = 0.0;
+        }
         state.frame_time = current_time;
 
         glfw.poll_events();
@@ -403,20 +410,21 @@ fn main() {
                 let view = Mat4::look_at_rh(state.floating_camera.position, state.player.position, state.floating_camera.up);
                 (floating_projection, view)
             }
-            CameraType::Orthographic => {
-                let view = Mat4::look_at_rh(state.ortho_camera.position, state.player.position, state.ortho_camera.up);
-
-                let eye = vec3(0.0, 1.0, 0.0); // Camera positioned above the origin
-                let center = vec3(0.0, 0.0, 0.0); // Looking at the origin
-                let up = vec3(0.0, 0.0, -1.0); // Up direction
+            CameraType::TopDown => {
+                // let view = Mat4::look_at_rh(state.ortho_camera.position, state.player.position, state.ortho_camera.up);
+                //
+                // let eye = vec3(0.0, 1.0, 0.0); // Camera positioned above the origin
+                // let center = vec3(0.0, 0.0, 0.0); // Looking at the origin
+                // let up = vec3(0.0, 0.0, -1.0); // Up direction
                 // let view = Mat4::look_at_rh(eye, center, up);
 
                 // top down view
-                let view = Mat4::look_at_rh(vec3(state.player.position.x, 1.0, state.player.position.z), state.player.position, up);
-
+                let view = Mat4::look_at_rh(vec3(state.player.position.x, 1.0, state.player.position.z), state.player.position,  vec3(0.0, 0.0, -1.0));
+                (orthographic_projection, view)
+            }
+            CameraType::Side => {
                 // side view
-                // let view = Mat4::look_at_rh(vec3(0.0, 0.0, -3.0), state.player.position, vec3(0.0, 1.0, 0.0));
-
+                let view = Mat4::look_at_rh(vec3(0.0, 0.0, -3.0), state.player.position, vec3(0.0, 1.0, 0.0));
                 (orthographic_projection, view)
             }
         };
@@ -495,8 +503,6 @@ fn main() {
         let muzzle_transform = get_muzzle_position(&player_model, &player_model_transform);
 
         if state.player.isAlive && state.player.isTryingToFire && (state.player.lastFireTime + FIRE_INTERVAL) < state.frame_time {
-
-            println!("firing!");
 
             bulletStore.create_bullets(dx, dz, &muzzle_transform, 10); //SPREAD_AMOUNT);
 
@@ -638,7 +644,13 @@ fn handle_window_event(window: &mut glfw::Window, event: glfw::WindowEvent, stat
             state.active_camera = CameraType::Floating;
         }
         glfw::WindowEvent::Key(Key::Num3, _, _, _) => {
-            state.active_camera = CameraType::Orthographic;
+            state.active_camera = CameraType::TopDown;
+        }
+        glfw::WindowEvent::Key(Key::Num4, _, _, _) => {
+            state.active_camera = CameraType::Side;
+        }
+        glfw::WindowEvent::Key(Key::Space, _, Action::Press, _) => {
+            state.run = !state.run;
         }
         glfw::WindowEvent::Key(Key::W, _, _, modifier) => {
             if modifier.is_empty() {
