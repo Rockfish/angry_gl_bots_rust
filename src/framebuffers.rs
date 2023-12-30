@@ -139,15 +139,18 @@ pub fn create_scene_fbo(viewportWidth: i32, viewportHeight: i32) -> FrameBuffer 
 }
 
 pub fn create_horizontal_blur_fbo(viewportWidth: i32, viewportHeight: i32) -> FrameBuffer {
+
     let mut horzBlurFBO: GLuint = 0;
     let mut horzBlurBuffer: GLuint = 0;
     let blurScale = 2;
+
     unsafe {
         gl::GenFramebuffers(1, &mut horzBlurFBO);
         gl::GenTextures(1, &mut horzBlurBuffer);
 
         gl::BindFramebuffer(gl::FRAMEBUFFER, horzBlurFBO);
         gl::BindTexture(gl::TEXTURE_2D, horzBlurBuffer);
+
         gl::TexImage2D(
             gl::TEXTURE_2D,
             0,
@@ -159,10 +162,12 @@ pub fn create_horizontal_blur_fbo(viewportWidth: i32, viewportHeight: i32) -> Fr
             gl::FLOAT,
             null!(),
         );
+
         gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as GLint);
         gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as GLint);
         gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as GLint);
         gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as GLint);
+
         gl::FramebufferTexture2D(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, horzBlurBuffer, 0);
 
         if (gl::CheckFramebufferStatus(gl::FRAMEBUFFER) != gl::FRAMEBUFFER_COMPLETE) {

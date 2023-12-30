@@ -27,8 +27,7 @@ use crate::floor::Floor;
 use crate::framebuffers::{create_depth_map_fbo, create_emission_fbo, create_horizontal_blur_fbo, create_scene_fbo, create_vertical_blur_fbo};
 use crate::muzzle_flash::{get_muzzle_position, MuzzleFlash};
 use crate::player::Player;
-use crate::quads::create_unitSquareVAO;
-use crate::sprite_sheet::{SpriteSheet, SpriteSheetSprite};
+use crate::quads::{create_moreObnoxiousQuadVAO, create_unitSquareVAO};
 use glam::{vec2, vec3, vec4, Mat4, Vec3, Vec4Swizzles};
 use glfw::JoystickId::Joystick1;
 use glfw::{Action, Context, Key, MouseButton};
@@ -44,6 +43,7 @@ use std::f32::consts::PI;
 use std::rc::Rc;
 use std::thread::sleep;
 use std::time::Duration;
+use small_gl_core::gl::{GLsizei, GLuint};
 
 const PARALLELISM: i32 = 4;
 
@@ -89,6 +89,8 @@ const MONSTER_Y: f32 = PLAYER_MODEL_SCALE * PLAYER_MODEL_GUN_HEIGHT;
 // Lighting
 const LIGHT_FACTOR: f32 = 0.8;
 const NON_BLUE: f32 = 0.9;
+
+const BLUR_SCALE: f32 = 2.0;
 
 const FLOOR_LIGHT_FACTOR: f32 = 0.35;
 const FLOOR_NON_BLUE: f32 = 0.7;
@@ -219,14 +221,11 @@ fn main() {
     // let mut texture_cache = TextureCache::new();
     let texture_config = TextureConfig::new().set_wrap(TextureWrap::Repeat);
 
-    // for (_unit, texture_type, path) in textures_to_load {
-    //     texture_config.texture_type = texture_type;
-    //     let texture = texture_cache.get_or_load_texture(path, &texture_config);
-    //     match texture {
-    //         Ok(_) => println!("Loaded: {}", path),
-    //         Err(e) => println!("Error loading: {} {}", path, e),
-    //     }
-    // }
+    let texUnit_emissionFBO = Texture::new("", &texture_config);
+    let texUnit_vertBlur = Texture::new("", &texture_config);
+    let texUnit_horzBlur = Texture::new("", &texture_config);
+    let texUnit_scene = Texture::new("", &texture_config);
+
 
     let floor = Floor::new(&basicTextureShader);
 
@@ -326,6 +325,7 @@ fn main() {
     // let mut bulletImpactSprites: Vec<SpriteSheetSprite> = vec![];
 
     let unit_square_quad = create_unitSquareVAO() as i32;
+    let moreObnoxiousQuadVAO = create_moreObnoxiousQuadVAO() as i32;
 
     // let mut muzzleFlashSpritesAge: Vec<f32> = vec![];
 
@@ -359,6 +359,13 @@ fn main() {
         glfw.poll_events();
         for (_, event) in glfw::flush_messages(&events) {
             handle_window_event(&mut window, event, &mut state);
+        }
+
+        unsafe {
+            gl::ActiveTexture(gl::TEXTURE0);
+            // gl::ActiveTexture(gl::TEXTURE0 + scene_fbo.texture_id);
+            // gl::BindTexture(gl::TEXTURE_2D, scene_fbo.texture_id as GLuint);
+            // gl::BindFramebuffer(gl::FRAMEBUFFER, scene_fbo.framebuffer_id);
         }
 
         // --- muzzle flash
@@ -530,8 +537,67 @@ fn main() {
 
         bulletStore.draw_bullet_impacts(&sprite_shader, &projection_view, &game_view);
 
-        buffer_ready = true;
+        // blur
+        unsafe {
+            // gl::Enable(gl::DEPTH_TEST);
 
+            // gl::Disable(gl::DEPTH_TEST);
+            //
+            // gl::ActiveTexture(gl::TEXTURE0 + horizontal_blur_fbo.texture_id);
+            // gl::BindTexture(gl::TEXTURE_2D, horizontal_blur_fbo.texture_id as GLuint);
+            //
+            // gl::ActiveTexture(gl::TEXTURE0 + vertical_blur_fbo.texture_id);
+            // gl::BindTexture(gl::TEXTURE_2D, vertical_blur_fbo.texture_id as GLuint);
+            //
+            // gl::ActiveTexture(gl::TEXTURE0 + emissions_fbo.texture_id);
+            // gl::BindTexture(gl::TEXTURE_2D, emissions_fbo.texture_id as GLuint);
+            //
+            // gl::ActiveTexture(gl::TEXTURE0 + scene_fbo.texture_id);
+            // gl::BindTexture(gl::TEXTURE_2D, scene_fbo.texture_id as GLuint);
+            //
+            // gl::BindFramebuffer(gl::FRAMEBUFFER, horizontal_blur_fbo.framebuffer_id);
+
+            // gl::Viewport(0, 0, (state.viewport_width / BLUR_SCALE) as i32, (state.viewport_height / BLUR_SCALE) as i32);
+
+            // gl::BindVertexArray(moreObnoxiousQuadVAO as GLuint);
+            //
+            // blurShader.use_shader();
+            // blurShader.set_int("image", emissions_fbo.texture_id as i32);
+            // blurShader.set_bool("horizontal", true);
+
+            // gl::DrawArrays(gl::TRIANGLES, 0, 6);
+            //
+            // gl::BindFramebuffer(gl::FRAMEBUFFER, vertical_blur_fbo.framebuffer_id);
+            // gl::BindVertexArray(moreObnoxiousQuadVAO as GLuint);
+            // blurShader.use_shader();
+            // blurShader.set_int("image", horizontal_blur_fbo.texture_id as i32);
+            // blurShader.set_bool("horizontal", false);
+            // gl::DrawArrays(gl::TRIANGLES, 0, 6);
+            //
+            // gl::Viewport(0, 0, state.viewport_width as GLsizei, state.viewport_height as GLsizei);
+            //
+            // gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
+            // sceneDrawShader.use_shader();
+            // gl::BindVertexArray(moreObnoxiousQuadVAO as GLuint);
+            // sceneDrawShader.set_int("base_texture", scene_fbo.texture_id as i32);
+            // sceneDrawShader.set_int("emission_texture", vertical_blur_fbo.texture_id as i32);
+            // sceneDrawShader.set_int("bright_texture", emissions_fbo.texture_id as i32);
+            // gl::DrawArrays(gl::TRIANGLES, 0, 6);
+            // gl::Enable(gl::DEPTH_TEST);
+            //
+            // glfwSwapBuffers(window);
+            // gl::BindFramebuffer(gl::FRAMEBUFFER, scene_fbo.framebuffer_id);
+
+            // gl::Viewport(0, 0, state.viewport_width as i32, state.viewport_height as i32);
+            // gl::ActiveTexture(gl::TEXTURE0);
+            // gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
+
+            // let width = state.viewport_width;
+            // let height = state.viewport_height;
+            // set_view_port(&mut state, width as i32, height as i32);
+        }
+
+        buffer_ready = true;
         window.swap_buffers();
     }
 }
@@ -610,15 +676,19 @@ fn handle_window_event(window: &mut glfw::Window, event: glfw::WindowEvent, stat
 }
 
 fn framebuffer_size_event(_window: &mut glfw::Window, state: &mut State, width: i32, height: i32) {
+    set_view_port(state, width, height);
+}
+
+fn set_view_port(state: &mut State, width: i32, height: i32) {
+    state.viewport_width = width as f32;
+    state.viewport_height = height as f32;
+    let ortho_width = state.viewport_width / 100.0;
+    let ortho_height = state.viewport_height / 100.0;
+    let aspect_ratio = state.viewport_width / state.viewport_height;
+    state.game_projection = Mat4::perspective_rh_gl(state.game_camera.zoom.to_radians(), aspect_ratio, 0.1, 100.0);
+    state.floating_projection = Mat4::perspective_rh_gl(state.floating_camera.zoom.to_radians(), aspect_ratio, 0.1, 100.0);
+    state.orthographic_projection = Mat4::orthographic_rh_gl(-ortho_width, ortho_width, -ortho_height, ortho_height, 0.1, 100.0);
     unsafe {
-        state.viewport_width = width as f32;
-        state.viewport_height = height as f32;
-        let ortho_width = state.viewport_width / 100.0;
-        let ortho_height = state.viewport_height / 100.0;
-        let aspect_ratio = state.viewport_width / state.viewport_height;
-        state.game_projection = Mat4::perspective_rh_gl(state.game_camera.zoom.to_radians(), aspect_ratio, 0.1, 100.0);
-        state.floating_projection = Mat4::perspective_rh_gl(state.floating_camera.zoom.to_radians(), aspect_ratio, 0.1, 100.0);
-        state.orthographic_projection = Mat4::orthographic_rh_gl(-ortho_width, ortho_width, -ortho_height, ortho_height, 0.1, 100.0);
         gl::Viewport(0, 0, width, height);
     }
 }
