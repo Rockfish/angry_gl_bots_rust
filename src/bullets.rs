@@ -2,9 +2,9 @@ use crate::aabb::AABB;
 use crate::capsule::Capsule;
 use crate::enemy::{Enemy, ENEMY_COLLIDER};
 use crate::geom::{distanceBetweenLineSegments, oriented_angle};
-use crate::sprite_sheet::SpriteSheetSprite;
-use crate::{PLAYER_MODEL_GUN_HEIGHT, State};
-use glam::{vec3, Mat4, Quat, Vec3, vec4, Vec4Swizzles};
+use crate::sprite_sheet::{SpriteSheet, SpriteSheetSprite};
+use crate::State;
+use glam::{vec3, vec4, Mat4, Quat, Vec3, Vec4Swizzles};
 use small_gl_core::gl::{GLsizei, GLsizeiptr, GLuint, GLvoid};
 use small_gl_core::shader::Shader;
 use small_gl_core::texture::{Texture, TextureConfig, TextureFilter, TextureType, TextureWrap};
@@ -38,10 +38,13 @@ pub struct BulletStore {
     offset_vbo: GLuint,
     bullet_groups: Vec<BulletGroup>,
     bullet_texture: Texture,
+    bulletImpactSpritesheet: SpriteSheet,
+    bulletImpactSprites: Vec<SpriteSheetSprite>,
+    unitSquareVAO: i32,
 }
 
 // const BULLET_SCALE: f32 = 0.3;
-const BULLET_SCALE: f32 = 1.0;
+const BULLET_SCALE: f32 = 0.5;
 const BULLET_LIFETIME: f32 = 1.0;
 // seconds
 const BULLET_SPEED: f32 = 15.0;
@@ -55,7 +58,8 @@ const CANONICAL_DIR: Vec3 = vec3(0.0, 0.0, 1.0);
 
 const BULLET_COLLIDER: Capsule = Capsule { height: 0.3, radius: 0.03 };
 
-const BULLET_ENEMY_MAX_COLLISION_DIST: f32 = BULLET_COLLIDER.height / 2.0 + BULLET_COLLIDER.radius + ENEMY_COLLIDER.height / 2.0 + ENEMY_COLLIDER.radius;
+const BULLET_ENEMY_MAX_COLLISION_DIST: f32 =
+    BULLET_COLLIDER.height / 2.0 + BULLET_COLLIDER.radius + ENEMY_COLLIDER.height / 2.0 + ENEMY_COLLIDER.radius;
 
 // Trim off margin around the bullet image
 // const TEXTURE_MARGIN: f32 = 0.0625;
@@ -107,9 +111,8 @@ const BULLET_INDICES_H_V: [i32; 12] = [
     4, 6, 7,
 ];
 
-
 impl BulletStore {
-    pub fn new() -> Self {
+    pub fn new(unitSquareVAO: i32) -> Self {
         // initialize_buffer_and_create
         let mut bullet_vao: GLuint = 0;
         let mut bullet_vbo: GLuint = 0;
@@ -127,13 +130,10 @@ impl BulletStore {
             wrap: TextureWrap::Repeat,
         };
 
-        // let texUnit_bullet = texture_cache
-        //     .get_or_load_texture("assets/Models/Bullet/Textures/BulletTexture.png", &texture_config)
-        //     .unwrap();
 
-        //let texUnit_bullet = Texture::new("angrygl_assets/bullet/bullet_texture_transparent.png", &texture_config).unwrap();
+        let bullet_texture = Texture::new("angrygl_assets/bullet/bullet_texture_transparent.png", &texture_config).unwrap();
         // let bullet_texture = Texture::new("angrygl_assets/bullet/red_bullet_transparent.png", &texture_config).unwrap();
-        let bullet_texture = Texture::new("angrygl_assets/bullet/red_and_green_bullet_transparent.png", &texture_config).unwrap();
+        // let bullet_texture = Texture::new("angrygl_assets/bullet/red_and_green_bullet_transparent.png", &texture_config).unwrap();
 
         let vertices = BULLET_VERTICES_H_V;
         let indices = BULLET_INDICES_H_V;
@@ -196,11 +196,10 @@ impl BulletStore {
             gl::EnableVertexAttribArray(3);
             gl::VertexAttribPointer(3, 3, gl::FLOAT, gl::FALSE, SIZE_OF_VEC3 as GLsizei, std::ptr::null::<GLvoid>());
             gl::VertexAttribDivisor(3, 1);
-
-            println!("SIZE_OF_FLOAT: {}", SIZE_OF_FLOAT);
-            println!("SIZE_OF_QUAT: {}", SIZE_OF_QUAT);
-            println!("SIZE_OF_VEC3: {}", SIZE_OF_VEC3);
         }
+
+        let texture_impactSpriteSheet = Texture::new("angrygl_assets/bullet/impact_spritesheet_with_00.png", &texture_config).unwrap();
+        let bulletImpactSpritesheet = SpriteSheet::new(texture_impactSpriteSheet, 11, 0.05);
 
         BulletStore {
             all_bullet_positions: Default::default(),
@@ -211,11 +210,13 @@ impl BulletStore {
             offset_vbo,
             bullet_groups: vec![],
             bullet_texture,
+            bulletImpactSpritesheet,
+            bulletImpactSprites: vec![],
+            unitSquareVAO,
         }
     }
 
     pub fn create_bullets(&mut self, dx: f32, dz: f32, muzzle_transform: &Mat4, spreadAmount: i32) {
-
         // let spreadAmount = 100;
 
         let mut spawn_point = *muzzle_transform;
@@ -235,8 +236,6 @@ impl BulletStore {
 
         // direction angle with respect to the canonical direction
         let theta = oriented_angle(x, y, rotVec) * -1.0;
-
-        println!("theta: {:?}", theta);
 
         let mut midDirQuat = Quat::from_xyzw(1.0, 0.0, 0.0, 0.0);
 
@@ -269,10 +268,18 @@ impl BulletStore {
             // let spread_centering = 0.0;
 
             for i in iStart..iEnd {
-                let yQuat = midDirQuat * Quat::from_axis_angle(vec3(0.0, 1.0, 0.0), ROTATION_PER_BULLET * ((i - spreadAmount) as f32 / 2.0) + spread_centering);
+                let yQuat = midDirQuat
+                    * Quat::from_axis_angle(
+                        vec3(0.0, 1.0, 0.0),
+                        ROTATION_PER_BULLET * ((i - spreadAmount) as f32 / 2.0) + spread_centering,
+                    );
 
                 for j in 0..spreadAmount {
-                    let rotQuat = yQuat * Quat::from_axis_angle(vec3(1.0, 0.0, 0.0), ROTATION_PER_BULLET * ((j - spreadAmount) as f32 / 2.0) + spread_centering); //PI/45.0); // add slight up
+                    let rotQuat = yQuat
+                        * Quat::from_axis_angle(
+                            vec3(1.0, 0.0, 0.0),
+                            ROTATION_PER_BULLET * ((j - spreadAmount) as f32 / 2.0) + spread_centering,
+                        );
 
                     let dir_glam = rotQuat.mul_vec3(CANONICAL_DIR * -1.0);
 
@@ -287,7 +294,10 @@ impl BulletStore {
 
         self.bullet_groups.push(bullet_group);
     }
-    pub fn update_bullets(&mut self, state: &mut State, enemyDeathSprites: &mut Vec<SpriteSheetSprite>) {
+
+    pub fn update_bullets(&mut self, state: &mut State) {
+        //}, bulletImpactSprites: &mut Vec<SpriteSheetSprite>) {
+
         let use_aabb = state.enemies.len() > 0;
         let num_sub_groups = if use_aabb { 9 } else { 1 };
 
@@ -373,9 +383,17 @@ impl BulletStore {
             }
         }
 
+        if self.bulletImpactSprites.len() > 0 {
+            for sheet in self.bulletImpactSprites.iter_mut() {
+                sheet.age += &state.delta_time;
+            }
+            let sprite_duration = self.bulletImpactSpritesheet.num_columns as f32 * self.bulletImpactSpritesheet.time_per_sprite;
+            self.bulletImpactSprites.retain(|sprite| sprite.age < sprite_duration);
+        }
+
         for enemy in state.enemies.iter() {
             if !enemy.is_alive {
-                enemyDeathSprites.push(SpriteSheetSprite::new(enemy.position));
+                self.bulletImpactSprites.push(SpriteSheetSprite::new(enemy.position));
             }
         }
 
@@ -383,6 +401,9 @@ impl BulletStore {
     }
 
     pub fn draw_bullets(&mut self, shader: &Rc<Shader>, projectionView: &Mat4) {
+        if self.all_bullet_positions.is_empty() {
+            return;
+        }
 
         unsafe {
             gl::Enable(gl::BLEND);
@@ -391,7 +412,6 @@ impl BulletStore {
 
             gl::DepthMask(gl::FALSE);
             gl::Disable(gl::CULL_FACE);
-
 
             gl::ActiveTexture(gl::TEXTURE0 + self.bullet_texture.id);
             gl::BindTexture(gl::TEXTURE_2D, self.bullet_texture.id);
@@ -416,10 +436,6 @@ impl BulletStore {
     }
 
     pub fn renderBulletSprites(&self) {
-        // if self.bullet_groups.is_empty() {
-        //     return;
-        // }
-
         unsafe {
             gl::BindVertexArray(self.bullet_vao);
 
@@ -448,6 +464,54 @@ impl BulletStore {
                 0 as *const GLvoid,
                 self.all_bullet_positions.len() as GLsizei,
             );
+        }
+    }
+
+    pub fn draw_bullet_impacts(&self, spriteShader: &Rc<Shader>, projection_view: &Mat4, view_transform: &Mat4) {
+        spriteShader.use_shader();
+        spriteShader.set_mat4("PV", projection_view);
+
+        spriteShader.set_int("numCols", self.bulletImpactSpritesheet.num_columns);
+        spriteShader.set_int("spritesheet", self.bulletImpactSpritesheet.texture.id as i32);
+        spriteShader.set_float("timePerSprite", self.bulletImpactSpritesheet.time_per_sprite);
+
+        unsafe {
+            gl::Enable(gl::BLEND);
+            gl::Disable(gl::CULL_FACE);
+
+            gl::ActiveTexture(gl::TEXTURE0 + self.bulletImpactSpritesheet.texture.id);
+            gl::BindTexture(gl::TEXTURE_2D, self.bulletImpactSpritesheet.texture.id as GLuint);
+            gl::BindVertexArray(self.unitSquareVAO as GLuint);
+        }
+
+        let scale = 2.0f32; // 0.25f32;
+
+        for sprite in &self.bulletImpactSprites {
+            let mut model = Mat4::from_translation(sprite.world_position);
+            model *= Mat4::from_rotation_x(-90.0f32.to_radians());
+
+            // TODO: Billboarding
+            // for (int i = 0; i < 3; i++)
+            // {
+            //     for (int j = 0; j < 3; j++)
+            //     {
+            //         model[i][j] = viewTransform[j][i];
+            //     }
+            // }
+
+            model *= Mat4::from_scale(vec3(scale, scale, scale));
+
+            spriteShader.set_float("age", sprite.age);
+            spriteShader.set_mat4("model", &model);
+
+            unsafe {
+                gl::DrawArrays(gl::TRIANGLES, 0, 6);
+            }
+        }
+
+        unsafe {
+            gl::Disable(gl::BLEND);
+            gl::Enable(gl::CULL_FACE);
         }
     }
 }
@@ -492,9 +556,9 @@ pub fn partialHamiltonProduct(q1: &Quat, q2: &Quat) -> Vec3 {
 // -- from ChatGPT --
 fn hamilton_product_quat_vec(quat: &Quat, vec: &Vec3) -> Quat {
     Quat {
-        x:  quat.w * vec.x + quat.y * vec.z - quat.z * vec.y,
-        y:  quat.w * vec.y - quat.x * vec.z + quat.z * vec.x,
-        z:  quat.w * vec.z + quat.x * vec.y - quat.y * vec.x,
+        x: quat.w * vec.x + quat.y * vec.z - quat.z * vec.y,
+        y: quat.w * vec.y - quat.x * vec.z + quat.z * vec.x,
+        z: quat.w * vec.z + quat.x * vec.y - quat.y * vec.x,
         w: -quat.x * vec.x - quat.y * vec.y - quat.z * vec.z,
     }
 }
@@ -510,12 +574,11 @@ fn hamilton_product_quat_quat(first: Quat, other: &Quat) -> Quat {
 
 #[cfg(test)]
 mod tests {
-    use glam::vec3;
     use crate::geom::oriented_angle;
+    use glam::vec3;
 
     #[test]
     fn test_oriented_rotation() {
-
         let canonical_dir = vec3(0.0, 0.0, -1.0);
 
         for angle in 0..361 {
@@ -537,6 +600,5 @@ mod tests {
 
             println!("angle: {}  direction: {:?}   theta: {:?}", angle, normalized_direction, angle);
         }
-
     }
 }

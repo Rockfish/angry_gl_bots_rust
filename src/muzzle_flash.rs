@@ -1,26 +1,57 @@
-use std::f32::consts::PI;
-use std::rc::Rc;
-use glam::{Mat4, vec3, Vec3, vec4};
+use crate::sprite_sheet::SpriteSheet;
+use glam::{vec3, Mat4};
 use small_gl_core::gl;
 use small_gl_core::gl::GLuint;
-use small_gl_core::model::{Model, ModelBuilder};
+use small_gl_core::model::Model;
 use small_gl_core::shader::Shader;
-use crate::sprite_sheet::SpriteSheet;
+use small_gl_core::texture::{Texture, TextureConfig, TextureWrap};
+use std::rc::Rc;
 
 pub struct MuzzleFlash {
     unitSquareVAO: i32,
     muzzleFlashImpactSpritesheet: SpriteSheet,
+    pub muzzleFlashSpritesAge: Vec<f32>,
 }
 
 impl MuzzleFlash {
-    pub fn new(unitSquareVAO: i32, muzzleFlashImpactSpritesheet: SpriteSheet) -> Self {
+    pub fn new(unitSquareVAO: i32) -> Self {
+        let texture_config = TextureConfig::new().set_wrap(TextureWrap::Repeat);
+        let texture_muzzleFlashSpriteSheet = Texture::new("angrygl_assets/Player/muzzle_spritesheet.png", &texture_config).unwrap();
+        let muzzleFlashImpactSpritesheet = SpriteSheet::new(texture_muzzleFlashSpriteSheet, 6, 0.05);
+
         MuzzleFlash {
             unitSquareVAO,
             muzzleFlashImpactSpritesheet,
+            muzzleFlashSpritesAge: vec![],
         }
     }
 
-    pub fn draw(&self, sprite_shader: &Rc<Shader>, PV: &Mat4, muzzleTransform: &Mat4, aimTheta: f32, muzzleFlashSpritesAge: &[f32]) {
+    pub fn update(&mut self, delta_time: f32) {
+        if &self.muzzleFlashSpritesAge.len() > &0 {
+            for i in 0..self.muzzleFlashSpritesAge.len() {
+                self.muzzleFlashSpritesAge[i] += delta_time;
+            }
+            let max_age = self.muzzleFlashImpactSpritesheet.num_columns as f32 * self.muzzleFlashImpactSpritesheet.time_per_sprite;
+            self.muzzleFlashSpritesAge.retain(|age| *age < max_age);
+        }
+    }
+
+    pub fn get_min_age(&self) -> f32 {
+        let mut min_age = 1000f32;
+        for age in self.muzzleFlashSpritesAge.iter() {
+            min_age = min_age.min(*age);
+        }
+        min_age
+    }
+
+    pub fn add_flash(&mut self) {
+        self.muzzleFlashSpritesAge.push(0.0);
+    }
+
+    pub fn draw(&self, sprite_shader: &Rc<Shader>, PV: &Mat4, muzzleTransform: &Mat4) {
+        if self.muzzleFlashSpritesAge.is_empty() {
+            return;
+        }
 
         sprite_shader.use_shader();
 
@@ -46,22 +77,9 @@ impl MuzzleFlash {
         model *= Mat4::from_rotation_x(-90.0f32.to_radians());
         model *= Mat4::from_translation(vec3(0.7f32, 0.0f32, 0.0f32)); // adjust for position in the texture
 
-        // let thing = model * vec4(0.0, 0.0, 1.0, 1.0);
-        // let yRot = thing.y.acos();
-        // let t = if aimTheta > 0.0 { aimTheta } else { aimTheta + 2.0 * PI };
-        // let bbRad = 0.5f32;
-        //
-        // let bb = if aimTheta >= 0.0 && aimTheta <= PI {
-        //         bbRad - 2.0 * bbRad * t / PI
-        // } else {
-        //         -3.0 * bbRad + 2.0 * bbRad * t / PI
-        // };
-        //
-        // model *= Mat4::from_rotation_x(bb - yRot + 0.94);
-
         sprite_shader.set_mat4("model", &model);
 
-        for spriteAge in muzzleFlashSpritesAge {
+        for spriteAge in &self.muzzleFlashSpritesAge {
             sprite_shader.set_float("age", *spriteAge);
             unsafe {
                 gl::DrawArrays(gl::TRIANGLES, 0, 6);
@@ -76,10 +94,9 @@ impl MuzzleFlash {
 }
 
 pub fn get_muzzle_position(player_model: &Model, player_model_transform: &Mat4) -> Mat4 {
-
     // Position in original model of gun muzzle
     // let point_vec = vec3(197.0, 76.143, -3.054);
-    let point_vec = vec3(191.04, 79.231, -3.4651);  // center of muzzle
+    let point_vec = vec3(191.04, 79.231, -3.4651); // center of muzzle
 
     let meshes = player_model.meshes.borrow();
     let animator = player_model.animator.borrow();

@@ -44,7 +44,7 @@ impl Floor {
 
         let texUnit_floorDiffuse = Texture::new("assets/Models/Floor D.png", &texture_config).unwrap();
         let texUnit_floorNormal = Texture::new("assets/Models/Floor N.png", &texture_config).unwrap();
-        let texUnit_floorSpec =Texture::new("assets/Models/Floor M.png", &texture_config).unwrap();
+        let texUnit_floorSpec = Texture::new("assets/Models/Floor M.png", &texture_config).unwrap();
         let texUnit_shadowMap = Texture::new("assets/Models/Floor D.png", &texture_config).unwrap();
 
         let mut floorVAO: GLuint = 0;

@@ -1,7 +1,6 @@
 use glam::Vec3;
 use small_gl_core::texture::Texture;
 
-
 #[derive(Debug, Clone)]
 pub struct SpriteSheet {
     pub texture: Texture,

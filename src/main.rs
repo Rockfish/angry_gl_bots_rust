@@ -13,11 +13,11 @@ mod enemy;
 mod floor;
 mod framebuffers;
 mod geom;
+mod muzzle_flash;
 mod player;
 mod quads;
 mod sprite_sheet;
 mod texture_cache;
-mod muzzle_flash;
 
 extern crate glfw;
 
@@ -25,7 +25,9 @@ use crate::bullets::BulletStore;
 use crate::enemy::{chase_player, draw_enemies, Enemy, EnemySpawner};
 use crate::floor::Floor;
 use crate::framebuffers::{create_depth_map_fbo, create_emission_fbo, create_horizontal_blur_fbo, create_scene_fbo, create_vertical_blur_fbo};
+use crate::muzzle_flash::{get_muzzle_position, MuzzleFlash};
 use crate::player::Player;
+use crate::quads::create_unitSquareVAO;
 use crate::sprite_sheet::{SpriteSheet, SpriteSheetSprite};
 use glam::{vec2, vec3, vec4, Mat4, Vec3, Vec4Swizzles};
 use glfw::JoystickId::Joystick1;
@@ -34,6 +36,7 @@ use log::error;
 use small_gl_core::animator::{AnimationClip, AnimationRepeat};
 use small_gl_core::camera::{Camera, CameraMovement};
 use small_gl_core::gl;
+use small_gl_core::math::{get_world_ray_from_mouse, ray_plane_intersection};
 use small_gl_core::model::ModelBuilder;
 use small_gl_core::shader::Shader;
 use small_gl_core::texture::{Texture, TextureConfig, TextureFilter, TextureType, TextureWrap};
@@ -41,9 +44,6 @@ use std::f32::consts::PI;
 use std::rc::Rc;
 use std::thread::sleep;
 use std::time::Duration;
-use small_gl_core::math::{get_world_ray_from_mouse, ray_plane_intersection};
-use crate::muzzle_flash::{get_muzzle_position, MuzzleFlash};
-use crate::quads::create_unitSquareVAO;
 
 const PARALLELISM: i32 = 4;
 
@@ -109,6 +109,9 @@ struct State {
     floating_camera: Camera,
     ortho_camera: Camera,
     active_camera: CameraType,
+    game_projection: Mat4,
+    floating_projection: Mat4,
+    orthographic_projection: Mat4,
     delta_time: f32,
     frame_time: f32,
     first_mouse: bool,
@@ -116,8 +119,8 @@ struct State {
     mouse_y: f32,
     player: Player,
     enemies: Vec<Enemy>,
-    viewport_width: i32,
-    viewport_height: i32,
+    viewport_width: f32,
+    viewport_height: f32,
 }
 
 fn error_callback(err: glfw::Error, description: String) {
@@ -164,8 +167,6 @@ fn main() {
     let ambientColor: Vec3 = LIGHT_FACTOR * 0.10 * vec3(NON_BLUE * 0.7, NON_BLUE * 0.7, 0.7);
 
     let muzzle_point_light_color = vec3(1.0, 0.2, 0.0);
-
-
 
     println!("Loading assets");
 
@@ -256,14 +257,6 @@ fn main() {
 
     // load sprite textures the right way
 
-    let texture_impactSpriteSheet = Texture::new("angrygl_assets/bullet/impact_spritesheet_with_00.png", &texture_config).unwrap();
-    let texture_muzzleFlashSpriteSheet =Texture::new("angrygl_assets/Player/muzzle_spritesheet.png", &texture_config).unwrap();
-
-    let bulletImpactSpritesheet = SpriteSheet::new(texture_impactSpriteSheet, 11, 0.05);
-    let muzzleFlashImpactSpritesheet = SpriteSheet::new(texture_muzzleFlashSpriteSheet, 6, 0.05);
-
-    let mut bulletStore = BulletStore::new();
-
     //
     // Cameras ------------------------
     //
@@ -278,19 +271,14 @@ fn main() {
         -20.0,
     );
 
-    let floating_camera =  Camera::camera_vec3_up_yaw_pitch(
+    let floating_camera = Camera::camera_vec3_up_yaw_pitch(
         vec3(0.0, 10.0, 20.0), // for xz world
         vec3(0.0, 1.0, 0.0),
         -90.0, // seems camera starts by looking down the x-axis, so needs to turn left to see the plane
         -20.0,
     );
 
-    let ortho_camera = Camera::camera_vec3_up_yaw_pitch(
-        vec3(0.0, 1.0, 0.0),
-        vec3(0.0, 1.0, 0.0),
-        0.0,
-        -90.0,
-    );
+    let ortho_camera = Camera::camera_vec3_up_yaw_pitch(vec3(0.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0), 0.0, -90.0);
 
     // Player
     let player = Player {
@@ -304,11 +292,21 @@ fn main() {
         speed: PLAYER_SPEED,
     };
 
+    let ortho_width = VIEW_PORT_WIDTH as f32 / 130.0;
+    let ortho_height = VIEW_PORT_HEIGHT as f32 / 130.0;
+    let aspect_ratio = VIEW_PORT_WIDTH as f32 / VIEW_PORT_HEIGHT as f32;
+    let game_projection = Mat4::perspective_rh_gl(game_camera.zoom.to_radians(), aspect_ratio, 0.1, 100.0);
+    let floating_projection = Mat4::perspective_rh_gl(floating_camera.zoom.to_radians(), aspect_ratio, 0.1, 100.0);
+    let orthographic_projection = Mat4::orthographic_rh_gl(-ortho_width, ortho_width, -ortho_height, ortho_height, 0.1, 100.0);
+
     let mut state = State {
         run: true,
         game_camera,
         floating_camera,
         ortho_camera,
+        game_projection,
+        floating_projection,
+        orthographic_projection,
         active_camera: CameraType::Game,
         delta_time: 0.0,
         frame_time: 0.0,
@@ -317,21 +315,22 @@ fn main() {
         mouse_y: VIEW_PORT_HEIGHT as f32 / 2.0,
         player,
         enemies: vec![],
-        viewport_width: VIEW_PORT_WIDTH,
-        viewport_height: VIEW_PORT_HEIGHT,
+        viewport_width: VIEW_PORT_WIDTH as f32,
+        viewport_height: VIEW_PORT_HEIGHT as f32,
     };
 
     let mut enemy_spawner = EnemySpawner::new(MONSTER_Y);
 
     let mut aimTheta = 0.0f32;
 
-    let mut bulletImpactSprites: Vec<SpriteSheetSprite> = vec![];
+    // let mut bulletImpactSprites: Vec<SpriteSheetSprite> = vec![];
 
-    let unit_square_quad = create_unitSquareVAO();
+    let unit_square_quad = create_unitSquareVAO() as i32;
 
-    let mut muzzleFlashSpritesAge: Vec<f32> = vec![];
-    // let mut muzzle_world_position3: Vec3 = Vec3::ZERO;
-    let muzzle_flash = MuzzleFlash::new(unit_square_quad as i32, muzzleFlashImpactSpritesheet.clone());
+    // let mut muzzleFlashSpritesAge: Vec<f32> = vec![];
+
+    let mut muzzle_flash = MuzzleFlash::new(unit_square_quad);
+    let mut bulletStore = BulletStore::new(unit_square_quad);
 
     let mut use_point_light = false;
 
@@ -345,19 +344,9 @@ fn main() {
 
     println!("Assets loaded. Starting loop.");
 
-    let game_projection = Mat4::perspective_rh_gl(state.game_camera.zoom.to_radians(), VIEW_PORT_WIDTH as f32 / VIEW_PORT_HEIGHT as f32, 0.1, 100.0);
-    let floating_projection = Mat4::perspective_rh_gl(state.floating_camera.zoom.to_radians(), VIEW_PORT_WIDTH as f32 / VIEW_PORT_HEIGHT as f32, 0.1, 100.0);
-
-    // ortho zoom
-    let width_half = 3.0;
-    let height_half = 3.0;
-    let orthographic_projection = Mat4::orthographic_rh_gl(-width_half, width_half, -height_half, height_half, 0.1, 100.0);
-
-
     let mut buffer_ready = false;
 
     while !window.should_close() {
-
         // sleep(Duration::from_millis(200));
         let current_time = glfw.get_time() as f32;
         if state.run {
@@ -374,25 +363,11 @@ fn main() {
 
         // --- muzzle flash
 
-        if &muzzleFlashSpritesAge.len() > &0 {
-            for i in 0..muzzleFlashSpritesAge.len() {
-                muzzleFlashSpritesAge[i] += &state.delta_time;
-            }
-            let max_age = muzzleFlashImpactSpritesheet.num_columns as f32 * muzzleFlashImpactSpritesheet.time_per_sprite;
-            muzzleFlashSpritesAge.retain(|age| *age < max_age);
-        }
+        muzzle_flash.update(state.delta_time);
 
         // --- bullet sprites
 
-        if bulletImpactSprites.len() > 0 {
-            for sheet in bulletImpactSprites.iter_mut() {
-                sheet.age += &state.delta_time;
-            }
-            let sprite_duration = bulletImpactSpritesheet.num_columns as f32 * bulletImpactSpritesheet.time_per_sprite;
-            bulletImpactSprites.retain(|sprite| sprite.age < sprite_duration);
-        }
-
-        bulletStore.update_bullets(&mut state, &mut bulletImpactSprites);
+        bulletStore.update_bullets(&mut state);
 
         if state.player.isAlive {
             enemy_spawner.update(&mut state);
@@ -404,28 +379,23 @@ fn main() {
         let (projection, camera_view) = match state.active_camera {
             CameraType::Game => {
                 state.game_camera.position = state.player.position + cameraFollowVec.clone();
-                (game_projection, game_view)
+                (state.game_projection, game_view)
             }
             CameraType::Floating => {
                 let view = Mat4::look_at_rh(state.floating_camera.position, state.player.position, state.floating_camera.up);
-                (floating_projection, view)
+                (state.floating_projection, view)
             }
             CameraType::TopDown => {
-                // let view = Mat4::look_at_rh(state.ortho_camera.position, state.player.position, state.ortho_camera.up);
-                //
-                // let eye = vec3(0.0, 1.0, 0.0); // Camera positioned above the origin
-                // let center = vec3(0.0, 0.0, 0.0); // Looking at the origin
-                // let up = vec3(0.0, 0.0, -1.0); // Up direction
-                // let view = Mat4::look_at_rh(eye, center, up);
-
-                // top down view
-                let view = Mat4::look_at_rh(vec3(state.player.position.x, 1.0, state.player.position.z), state.player.position,  vec3(0.0, 0.0, -1.0));
-                (orthographic_projection, view)
+                let view = Mat4::look_at_rh(
+                    vec3(state.player.position.x, 1.0, state.player.position.z),
+                    state.player.position,
+                    vec3(0.0, 0.0, -1.0),
+                );
+                (state.orthographic_projection, view)
             }
             CameraType::Side => {
-                // side view
                 let view = Mat4::look_at_rh(vec3(0.0, 0.0, -3.0), state.player.position, vec3(0.0, 1.0, 0.0));
-                (orthographic_projection, view)
+                (state.orthographic_projection, view)
             }
         };
 
@@ -437,49 +407,20 @@ fn main() {
         state.player.isAlive = true;
 
         if state.player.isAlive && buffer_ready {
-
-            // let inv = (game_view.inverse() * game_projection.inverse()).to_cols_array_2d();
-            //
-            // let t = (inv[0][1] * state.mouse_x + inv[1][1] * state.mouse_y + inv[3][1]
-            //     - MONSTER_Y * (inv[0][3] * state.mouse_x + inv[1][3] * state.mouse_x + inv[3][3]))
-            //     / (inv[2][3] * MONSTER_Y - inv[2][1]);
-            //
-            // let s = 1.0 / (inv[0][3] * state.mouse_x + inv[1][3] * state.mouse_y + inv[2][3] * t + inv[3][3]);
-            //
-            // let us = state.mouse_x * s;
-            // let vs = state.mouse_y * s;
-            //
-            // let ts = t * s;
-            // let worldX = inv[0][0] * us + inv[1][0] * vs + inv[2][0] * ts + inv[3][0] * s;
-            // let worldZ = inv[0][2] * us + inv[1][2] * vs + inv[2][2] * ts + inv[3][2] * s;
-            //
-            // dx = worldX - state.player.position.x;
-            // dz = worldZ - state.player.position.z;
-            //
-            // aimTheta = (dx / dz).atan() + if dz < 0.0 { PI } else { 0.0 };
-            //
-            // if state.mouse_x.abs() < 0.005 && state.mouse_y.abs() < 0.005 {
-            //     aimTheta = 0.0;
-            // }
-
             let world_ray = get_world_ray_from_mouse(
                 state.mouse_x,
                 state.mouse_y,
-                VIEW_PORT_WIDTH as f32,
-                VIEW_PORT_HEIGHT as f32,
+                state.viewport_width,
+                state.viewport_height,
                 &game_view,
-                &game_projection);
+                &game_projection,
+            );
 
             // the xz plane
             let plane_point = vec3(0.0, 0.0, 0.0);
             let plane_normal = vec3(0.0, 1.0, 0.0);
 
-            let world_point = ray_plane_intersection(
-                state.game_camera.position,
-                world_ray,
-                plane_point,
-                plane_normal,
-            ).unwrap();
+            let world_point = ray_plane_intersection(state.game_camera.position, world_ray, plane_point, plane_normal).unwrap();
 
             dx = world_point.x - state.player.position.x;
             dz = world_point.z - state.player.position.z;
@@ -491,7 +432,7 @@ fn main() {
             }
         }
 
-        // Todo:
+        // Todo: blend player animations for current action
         // player.update_points_for_anim(&mut state);
 
         let aimRot = Mat4::from_axis_angle(vec3(0.0, 1.0, 0.0), aimTheta);
@@ -503,11 +444,10 @@ fn main() {
         let muzzle_transform = get_muzzle_position(&player_model, &player_model_transform);
 
         if state.player.isAlive && state.player.isTryingToFire && (state.player.lastFireTime + FIRE_INTERVAL) < state.frame_time {
-
             bulletStore.create_bullets(dx, dz, &muzzle_transform, 10); //SPREAD_AMOUNT);
 
             state.player.lastFireTime = state.frame_time;
-            muzzleFlashSpritesAge.push(0.0);
+            muzzle_flash.add_flash();
         }
 
         // Draw phase
@@ -529,38 +469,8 @@ fn main() {
 
         playerShader.use_shader();
 
-        if muzzleFlashSpritesAge.len() > 0 {
-            // // Muzzle pos calc
-            //
-            // // Position in original model of gun muzzle
-            // let point_vec = vec3(197.0, 76.143, -3.054);
-            //
-            // let meshes = player_model.meshes.borrow();
-            // let animator = player_model.animator.borrow();
-            //
-            // let gun_mesh = meshes.iter().find(|m| m.name.as_str() == "Gun").unwrap();
-            // let final_node_matrices = animator.final_node_matrices.borrow();
-            //
-            // let gun_transform = final_node_matrices.get(gun_mesh.id as usize).unwrap();
-            //
-            // let muzzle = *gun_transform * Mat4::from_translation(point_vec);
-            //
-            // // Adjust for player
-            // muzzle_transform = player_model_transform * muzzle;
-            //
-            // let muzzle_world_position = muzzle_transform * vec4(0.0, 0.0, 0.0, 1.0);
-            //
-            // muzzle_world_position3 = vec3(
-            //     muzzle_world_position.x / muzzle_world_position.w,
-            //     muzzle_world_position.y / muzzle_world_position.w,
-            //     muzzle_world_position.z / muzzle_world_position.w,
-            // );
-
-            let mut min_age = 1000f32;
-
-            for age in muzzleFlashSpritesAge.iter() {
-                min_age = min_age.min(*age);
-            }
+        if muzzle_flash.muzzleFlashSpritesAge.len() > 0 {
+            let min_age = muzzle_flash.get_min_age();
 
             use_point_light = min_age < 0.03;
 
@@ -592,10 +502,7 @@ fn main() {
         player_model.update_animation(state.delta_time);
         player_model.render(&playerShader);
 
-
-        if muzzleFlashSpritesAge.len() > 0 {
-            muzzle_flash.draw(&sprite_shader, &projection_view, &muzzle_transform, aimTheta, muzzleFlashSpritesAge.as_slice());
-        }
+        muzzle_flash.draw(&sprite_shader, &projection_view, &muzzle_transform);
 
         if !state.player.isAlive {
             if state.player.animation_name != String::from(&dying.name) {
@@ -620,6 +527,8 @@ fn main() {
         wigglyShader.set_vec3("ambient", &ambientColor);
 
         draw_enemies(&wigglyBoi, &wigglyShader, &mut state);
+
+        bulletStore.draw_bullet_impacts(&sprite_shader, &projection_view, &game_view);
 
         buffer_ready = true;
 
@@ -700,15 +609,16 @@ fn handle_window_event(window: &mut glfw::Window, event: glfw::WindowEvent, stat
     state.player.player_direction = vec2(direction_vec.x, direction_vec.z);
 }
 
-// glfw: whenever the window size changed (by OS or user resize) this event fires.
-// ---------------------------------------------------------------------------------------------
 fn framebuffer_size_event(_window: &mut glfw::Window, state: &mut State, width: i32, height: i32) {
-    // make sure the viewport matches the new window dimensions; note that width and
-    // height will be significantly larger than specified on retina displays.
-    // println!("Framebuffer size: {}, {}", width, height);
     unsafe {
-        state.viewport_width = width;
-        state.viewport_height = height;
+        state.viewport_width = width as f32;
+        state.viewport_height = height as f32;
+        let ortho_width = state.viewport_width / 100.0;
+        let ortho_height = state.viewport_height / 100.0;
+        let aspect_ratio = state.viewport_width / state.viewport_height;
+        state.game_projection = Mat4::perspective_rh_gl(state.game_camera.zoom.to_radians(), aspect_ratio, 0.1, 100.0);
+        state.floating_projection = Mat4::perspective_rh_gl(state.floating_camera.zoom.to_radians(), aspect_ratio, 0.1, 100.0);
+        state.orthographic_projection = Mat4::orthographic_rh_gl(-ortho_width, ortho_width, -ortho_height, ortho_height, 0.1, 100.0);
         gl::Viewport(0, 0, width, height);
     }
 }
