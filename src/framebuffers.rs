@@ -1,6 +1,8 @@
 use small_gl_core::gl::{GLfloat, GLint, GLuint, GLvoid};
 use small_gl_core::{gl, null};
 
+const BLUR_SCALE: i32 = 1; // 2.0;
+
 pub struct FrameBuffer {
     pub framebuffer_id: u32, // framebuffer object
     pub texture_id: u32,     // texture object
@@ -121,6 +123,7 @@ pub fn create_scene_fbo(viewportWidth: i32, viewportHeight: i32) -> FrameBuffer 
         gl::FramebufferTexture2D(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, sceneBuffer, 0);
 
         let mut rbo: GLuint = 0;
+
         gl::GenRenderbuffers(1, &mut rbo);
         gl::BindRenderbuffer(gl::RENDERBUFFER, rbo);
         gl::RenderbufferStorage(gl::RENDERBUFFER, gl::DEPTH24_STENCIL8, viewportWidth, viewportHeight);
@@ -139,10 +142,8 @@ pub fn create_scene_fbo(viewportWidth: i32, viewportHeight: i32) -> FrameBuffer 
 }
 
 pub fn create_horizontal_blur_fbo(viewportWidth: i32, viewportHeight: i32) -> FrameBuffer {
-
     let mut horzBlurFBO: GLuint = 0;
     let mut horzBlurBuffer: GLuint = 0;
-    let blurScale = 2;
 
     unsafe {
         gl::GenFramebuffers(1, &mut horzBlurFBO);
@@ -155,8 +156,8 @@ pub fn create_horizontal_blur_fbo(viewportWidth: i32, viewportHeight: i32) -> Fr
             gl::TEXTURE_2D,
             0,
             gl::RGB as GLint,
-            viewportWidth / blurScale,
-            viewportHeight / blurScale,
+            viewportWidth / BLUR_SCALE,
+            viewportHeight / BLUR_SCALE,
             0,
             gl::RGB,
             gl::FLOAT,
@@ -185,7 +186,6 @@ pub fn create_horizontal_blur_fbo(viewportWidth: i32, viewportHeight: i32) -> Fr
 pub fn create_vertical_blur_fbo(viewportWidth: i32, viewportHeight: i32) -> FrameBuffer {
     let mut vertBlurFBO: GLuint = 0;
     let mut vertBlurBuffer: GLuint = 0;
-    let blurScale = 2;
     unsafe {
         gl::GenFramebuffers(1, &mut vertBlurFBO);
         gl::GenTextures(1, &mut vertBlurBuffer);
@@ -196,8 +196,8 @@ pub fn create_vertical_blur_fbo(viewportWidth: i32, viewportHeight: i32) -> Fram
             gl::TEXTURE_2D,
             0,
             gl::RGB as GLint,
-            viewportWidth / blurScale,
-            viewportHeight / blurScale,
+            viewportWidth / BLUR_SCALE,
+            viewportHeight / BLUR_SCALE,
             0,
             gl::RGB,
             gl::FLOAT,

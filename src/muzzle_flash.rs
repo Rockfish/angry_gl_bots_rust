@@ -56,8 +56,8 @@ impl MuzzleFlash {
         sprite_shader.use_shader();
 
         unsafe {
-            gl::DepthMask(gl::FALSE);
             gl::Enable(gl::BLEND);
+            gl::DepthMask(gl::FALSE);
 
             sprite_shader.set_mat4("PV", &PV);
 

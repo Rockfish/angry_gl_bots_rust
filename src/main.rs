@@ -8,6 +8,7 @@
 
 mod aabb;
 mod bullets;
+mod burn_marks;
 mod capsule;
 mod enemy;
 mod floor;
@@ -22,6 +23,7 @@ mod texture_cache;
 extern crate glfw;
 
 use crate::bullets::BulletStore;
+use crate::burn_marks::BurnMarks;
 use crate::enemy::{chase_player, draw_enemies, Enemy, EnemySpawner};
 use crate::floor::Floor;
 use crate::framebuffers::{create_depth_map_fbo, create_emission_fbo, create_horizontal_blur_fbo, create_scene_fbo, create_vertical_blur_fbo};
@@ -35,6 +37,7 @@ use log::error;
 use small_gl_core::animator::{AnimationClip, AnimationRepeat};
 use small_gl_core::camera::{Camera, CameraMovement};
 use small_gl_core::gl;
+use small_gl_core::gl::{GLsizei, GLuint};
 use small_gl_core::math::{get_world_ray_from_mouse, ray_plane_intersection};
 use small_gl_core::model::ModelBuilder;
 use small_gl_core::shader::Shader;
@@ -43,13 +46,14 @@ use std::f32::consts::PI;
 use std::rc::Rc;
 use std::thread::sleep;
 use std::time::Duration;
-use small_gl_core::gl::{GLsizei, GLuint};
 
 const PARALLELISM: i32 = 4;
 
 // Viewport
 const VIEW_PORT_WIDTH: i32 = 1500;
 const VIEW_PORT_HEIGHT: i32 = 1000;
+// const VIEW_PORT_WIDTH: i32 = 800;
+// const VIEW_PORT_HEIGHT: i32 = 500;
 //
 // // Texture units
 // const texUnit_playerDiffuse: u32 = 0;
@@ -107,6 +111,7 @@ enum CameraType {
 
 struct State {
     run: bool,
+    window_scale: (f32, f32),
     game_camera: Camera,
     floating_camera: Camera,
     ortho_camera: Camera,
@@ -121,6 +126,7 @@ struct State {
     mouse_y: f32,
     player: Player,
     enemies: Vec<Enemy>,
+    burn_marks: BurnMarks,
     viewport_width: f32,
     viewport_height: f32,
 }
@@ -226,7 +232,6 @@ fn main() {
     let texUnit_horzBlur = Texture::new("", &texture_config);
     let texUnit_scene = Texture::new("", &texture_config);
 
-
     let floor = Floor::new(&basicTextureShader);
 
     // Framebuffers
@@ -251,10 +256,11 @@ fn main() {
     }
 
     //
-    // ----------------- Game parts ---------------
+    // ----------------- quads ---------------
     //
 
-    // load sprite textures the right way
+    let unit_square_quad = create_unitSquareVAO() as i32;
+    let moreObnoxiousQuadVAO = create_moreObnoxiousQuadVAO() as i32;
 
     //
     // Cameras ------------------------
@@ -300,6 +306,7 @@ fn main() {
 
     let mut state = State {
         run: true,
+        window_scale: window.get_content_scale(),
         game_camera,
         floating_camera,
         ortho_camera,
@@ -314,21 +321,16 @@ fn main() {
         mouse_y: VIEW_PORT_HEIGHT as f32 / 2.0,
         player,
         enemies: vec![],
+        burn_marks: BurnMarks::new(unit_square_quad),
         viewport_width: VIEW_PORT_WIDTH as f32,
         viewport_height: VIEW_PORT_HEIGHT as f32,
     };
 
-    let mut enemy_spawner = EnemySpawner::new(MONSTER_Y);
-
     let mut aimTheta = 0.0f32;
-
-    // let mut bulletImpactSprites: Vec<SpriteSheetSprite> = vec![];
-
-    let unit_square_quad = create_unitSquareVAO() as i32;
-    let moreObnoxiousQuadVAO = create_moreObnoxiousQuadVAO() as i32;
 
     // let mut muzzleFlashSpritesAge: Vec<f32> = vec![];
 
+    let mut enemy_spawner = EnemySpawner::new(MONSTER_Y);
     let mut muzzle_flash = MuzzleFlash::new(unit_square_quad);
     let mut bulletStore = BulletStore::new(unit_square_quad);
 
@@ -347,7 +349,8 @@ fn main() {
     let mut buffer_ready = false;
 
     while !window.should_close() {
-        // sleep(Duration::from_millis(200));
+        // sleep(Duration::from_millis(500));
+
         let current_time = glfw.get_time() as f32;
         if state.run {
             state.delta_time = current_time - state.frame_time;
@@ -359,6 +362,11 @@ fn main() {
         glfw.poll_events();
         for (_, event) in glfw::flush_messages(&events) {
             handle_window_event(&mut window, event, &mut state);
+        }
+
+        if joy.is_present() {
+            let axes = joy.get_axes();
+            println!("axes: {:?}", axes)
         }
 
         unsafe {
@@ -381,13 +389,11 @@ fn main() {
             chase_player(&mut state);
         }
 
+        state.game_camera.position = state.player.position + cameraFollowVec.clone();
         let game_view = Mat4::look_at_rh(state.game_camera.position, state.player.position, state.game_camera.up);
 
         let (projection, camera_view) = match state.active_camera {
-            CameraType::Game => {
-                state.game_camera.position = state.player.position + cameraFollowVec.clone();
-                (state.game_projection, game_view)
-            }
+            CameraType::Game => (state.game_projection, game_view),
             CameraType::Floating => {
                 let view = Mat4::look_at_rh(state.floating_camera.position, state.player.position, state.floating_camera.up);
                 (state.floating_projection, view)
@@ -420,7 +426,7 @@ fn main() {
                 state.viewport_width,
                 state.viewport_height,
                 &game_view,
-                &game_projection,
+                &state.game_projection,
             );
 
             // the xz plane
@@ -467,9 +473,6 @@ fn main() {
 
         // --- draw floor
         floor.draw(&projection_view, &ambientColor);
-
-        // --- draw bullets
-        bulletStore.draw_bullets(&instancedTextureShader, &projection_view);
 
         // --- draw player with shadows
         {}
@@ -535,66 +538,76 @@ fn main() {
 
         draw_enemies(&wigglyBoi, &wigglyShader, &mut state);
 
+        state.burn_marks.draw_marks(&basicTextureShader, &projection_view, state.delta_time);
+
         bulletStore.draw_bullet_impacts(&sprite_shader, &projection_view, &game_view);
+
+        // --- draw bullets
+        bulletStore.draw_bullets(&instancedTextureShader, &projection_view);
 
         // blur
         unsafe {
             // gl::Enable(gl::DEPTH_TEST);
+            let viewport_width = state.viewport_width * state.window_scale.0;
+            let viewport_height = state.viewport_height * state.window_scale.0;
 
-            // gl::Disable(gl::DEPTH_TEST);
+            gl::Disable(gl::DEPTH_TEST);
             //
-            // gl::ActiveTexture(gl::TEXTURE0 + horizontal_blur_fbo.texture_id);
-            // gl::BindTexture(gl::TEXTURE_2D, horizontal_blur_fbo.texture_id as GLuint);
-            //
-            // gl::ActiveTexture(gl::TEXTURE0 + vertical_blur_fbo.texture_id);
-            // gl::BindTexture(gl::TEXTURE_2D, vertical_blur_fbo.texture_id as GLuint);
-            //
-            // gl::ActiveTexture(gl::TEXTURE0 + emissions_fbo.texture_id);
-            // gl::BindTexture(gl::TEXTURE_2D, emissions_fbo.texture_id as GLuint);
-            //
-            // gl::ActiveTexture(gl::TEXTURE0 + scene_fbo.texture_id);
-            // gl::BindTexture(gl::TEXTURE_2D, scene_fbo.texture_id as GLuint);
-            //
-            // gl::BindFramebuffer(gl::FRAMEBUFFER, horizontal_blur_fbo.framebuffer_id);
+            gl::ActiveTexture(gl::TEXTURE0 + horizontal_blur_fbo.texture_id);
+            gl::BindTexture(gl::TEXTURE_2D, horizontal_blur_fbo.texture_id as GLuint);
 
-            // gl::Viewport(0, 0, (state.viewport_width / BLUR_SCALE) as i32, (state.viewport_height / BLUR_SCALE) as i32);
+            gl::ActiveTexture(gl::TEXTURE0 + vertical_blur_fbo.texture_id);
+            gl::BindTexture(gl::TEXTURE_2D, vertical_blur_fbo.texture_id as GLuint);
 
-            // gl::BindVertexArray(moreObnoxiousQuadVAO as GLuint);
+            gl::ActiveTexture(gl::TEXTURE0 + emissions_fbo.texture_id);
+            gl::BindTexture(gl::TEXTURE_2D, emissions_fbo.texture_id as GLuint);
             //
-            // blurShader.use_shader();
-            // blurShader.set_int("image", emissions_fbo.texture_id as i32);
-            // blurShader.set_bool("horizontal", true);
+            gl::ActiveTexture(gl::TEXTURE0 + scene_fbo.texture_id);
+            gl::BindTexture(gl::TEXTURE_2D, scene_fbo.texture_id as GLuint);
+            //
+            gl::BindFramebuffer(gl::FRAMEBUFFER, horizontal_blur_fbo.framebuffer_id);
 
-            // gl::DrawArrays(gl::TRIANGLES, 0, 6);
+            gl::Viewport(0, 0, (viewport_width / BLUR_SCALE) as i32, (viewport_height / BLUR_SCALE) as i32);
+
+            gl::BindVertexArray(moreObnoxiousQuadVAO as GLuint);
+
+            blurShader.use_shader();
+            blurShader.set_int("image", emissions_fbo.texture_id as i32);
+            blurShader.set_bool("horizontal", true);
             //
-            // gl::BindFramebuffer(gl::FRAMEBUFFER, vertical_blur_fbo.framebuffer_id);
-            // gl::BindVertexArray(moreObnoxiousQuadVAO as GLuint);
-            // blurShader.use_shader();
-            // blurShader.set_int("image", horizontal_blur_fbo.texture_id as i32);
-            // blurShader.set_bool("horizontal", false);
-            // gl::DrawArrays(gl::TRIANGLES, 0, 6);
-            //
-            // gl::Viewport(0, 0, state.viewport_width as GLsizei, state.viewport_height as GLsizei);
-            //
+            gl::DrawArrays(gl::TRIANGLES, 0, 6);
+
+            gl::BindFramebuffer(gl::FRAMEBUFFER, vertical_blur_fbo.framebuffer_id);
+            gl::BindVertexArray(moreObnoxiousQuadVAO as GLuint);
+            blurShader.use_shader();
+            blurShader.set_int("image", horizontal_blur_fbo.texture_id as i32);
+            blurShader.set_bool("horizontal", false);
+            gl::DrawArrays(gl::TRIANGLES, 0, 6);
+
+            gl::Viewport(0, 0, viewport_width as GLsizei, viewport_height as GLsizei);
+
             // gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
-            // sceneDrawShader.use_shader();
-            // gl::BindVertexArray(moreObnoxiousQuadVAO as GLuint);
-            // sceneDrawShader.set_int("base_texture", scene_fbo.texture_id as i32);
-            // sceneDrawShader.set_int("emission_texture", vertical_blur_fbo.texture_id as i32);
-            // sceneDrawShader.set_int("bright_texture", emissions_fbo.texture_id as i32);
-            // gl::DrawArrays(gl::TRIANGLES, 0, 6);
-            // gl::Enable(gl::DEPTH_TEST);
             //
-            // glfwSwapBuffers(window);
+            sceneDrawShader.use_shader();
+            gl::BindVertexArray(moreObnoxiousQuadVAO as GLuint);
+
+            sceneDrawShader.set_int("base_texture", scene_fbo.texture_id as i32);
+            sceneDrawShader.set_int("emission_texture", vertical_blur_fbo.texture_id as i32);
+            sceneDrawShader.set_int("bright_texture", emissions_fbo.texture_id as i32);
+
+            gl::DrawArrays(gl::TRIANGLES, 0, 6);
+            gl::Enable(gl::DEPTH_TEST);
+
+            // window.swap_buffers();
             // gl::BindFramebuffer(gl::FRAMEBUFFER, scene_fbo.framebuffer_id);
 
             // gl::Viewport(0, 0, state.viewport_width as i32, state.viewport_height as i32);
-            // gl::ActiveTexture(gl::TEXTURE0);
-            // gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
 
-            // let width = state.viewport_width;
-            // let height = state.viewport_height;
-            // set_view_port(&mut state, width as i32, height as i32);
+            gl::ActiveTexture(gl::TEXTURE0);
+            gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
+
+            gl::Viewport(0, 0, viewport_width as GLsizei, viewport_height as GLsizei);
+            gl::Enable(gl::DEPTH_TEST);
         }
 
         buffer_ready = true;
@@ -626,6 +639,11 @@ fn handle_window_event(window: &mut glfw::Window, event: glfw::WindowEvent, stat
         }
         glfw::WindowEvent::Key(Key::Space, _, Action::Press, _) => {
             state.run = !state.run;
+        }
+        glfw::WindowEvent::Key(Key::T, _, Action::Press, _) => {
+            let width = state.viewport_width as i32;
+            let height = state.viewport_height as i32;
+            set_view_port(state, width, height)
         }
         glfw::WindowEvent::Key(Key::W, _, _, modifier) => {
             if modifier.is_empty() {
@@ -676,21 +694,25 @@ fn handle_window_event(window: &mut glfw::Window, event: glfw::WindowEvent, stat
 }
 
 fn framebuffer_size_event(_window: &mut glfw::Window, state: &mut State, width: i32, height: i32) {
+    println!("resize: width, height: {}, {}", width, height);
     set_view_port(state, width, height);
 }
 
 fn set_view_port(state: &mut State, width: i32, height: i32) {
-    state.viewport_width = width as f32;
-    state.viewport_height = height as f32;
-    let ortho_width = state.viewport_width / 100.0;
-    let ortho_height = state.viewport_height / 100.0;
-    let aspect_ratio = state.viewport_width / state.viewport_height;
-    state.game_projection = Mat4::perspective_rh_gl(state.game_camera.zoom.to_radians(), aspect_ratio, 0.1, 100.0);
-    state.floating_projection = Mat4::perspective_rh_gl(state.floating_camera.zoom.to_radians(), aspect_ratio, 0.1, 100.0);
-    state.orthographic_projection = Mat4::orthographic_rh_gl(-ortho_width, ortho_width, -ortho_height, ortho_height, 0.1, 100.0);
     unsafe {
         gl::Viewport(0, 0, width, height);
     }
+
+    state.viewport_width = width as f32 / state.window_scale.0;
+    state.viewport_height = height as f32 / state.window_scale.1;
+
+    let ortho_width = state.viewport_width / 130.0;
+    let ortho_height = state.viewport_height / 130.0;
+    let aspect_ratio = state.viewport_width / state.viewport_height;
+
+    state.game_projection = Mat4::perspective_rh_gl(state.game_camera.zoom.to_radians(), aspect_ratio, 0.1, 100.0);
+    state.floating_projection = Mat4::perspective_rh_gl(state.floating_camera.zoom.to_radians(), aspect_ratio, 0.1, 100.0);
+    state.orthographic_projection = Mat4::orthographic_rh_gl(-ortho_width, ortho_width, -ortho_height, ortho_height, 0.1, 100.0);
 }
 
 fn mouse_handler(state: &mut State, xposIn: f64, yposIn: f64) {
@@ -709,9 +731,25 @@ fn mouse_handler(state: &mut State, xposIn: f64, yposIn: f64) {
     state.mouse_x = xpos;
     state.mouse_y = ypos;
 
+    // println!("mouse: {}, {}", xpos, ypos);
+
     // state.camera.process_mouse_movement(xoffset, yoffset, true);
 }
 
 fn scroll_handler(state: &mut State, _xoffset: f64, yoffset: f64) {
     state.game_camera.process_mouse_scroll(yoffset as f32);
 }
+/*
+world_ray: Vec3(0.68110394, -0.7321868, -2.9802322e-8)
+world_point: Vec3(-2.3841858e-7, 0.0, -1.7502363e-7)
+dx, dz: -0.00000023841858, -0.00000017502363
+aimTheta: 4.07914
+
+
+world_ray: Vec3(0.66441494, -0.65366167, -0.3623247)
+world_point: Vec3(0.37073898, 0.0, -2.3834906)
+dx, dz: 0.37073898, -2.3834906
+aimTheta: 2.9872847
+
+
+ */

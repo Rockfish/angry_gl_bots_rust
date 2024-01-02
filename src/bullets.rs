@@ -8,6 +8,7 @@ use glam::{vec3, vec4, Mat4, Quat, Vec3, Vec4Swizzles};
 use small_gl_core::gl::{GLsizei, GLsizeiptr, GLuint, GLvoid};
 use small_gl_core::shader::Shader;
 use small_gl_core::texture::{Texture, TextureConfig, TextureFilter, TextureType, TextureWrap};
+use small_gl_core::utils::random_clamped;
 use small_gl_core::{gl, SIZE_OF_FLOAT, SIZE_OF_QUAT, SIZE_OF_VEC3};
 use std::f32::consts::PI;
 use std::rc::Rc;
@@ -58,8 +59,7 @@ const CANONICAL_DIR: Vec3 = vec3(0.0, 0.0, 1.0);
 
 const BULLET_COLLIDER: Capsule = Capsule { height: 0.3, radius: 0.03 };
 
-const BULLET_ENEMY_MAX_COLLISION_DIST: f32 =
-    BULLET_COLLIDER.height / 2.0 + BULLET_COLLIDER.radius + ENEMY_COLLIDER.height / 2.0 + ENEMY_COLLIDER.radius;
+const BULLET_ENEMY_MAX_COLLISION_DIST: f32 = BULLET_COLLIDER.height / 2.0 + BULLET_COLLIDER.radius + ENEMY_COLLIDER.height / 2.0 + ENEMY_COLLIDER.radius;
 
 // Trim off margin around the bullet image
 // const TEXTURE_MARGIN: f32 = 0.0625;
@@ -130,7 +130,6 @@ impl BulletStore {
             wrap: TextureWrap::Repeat,
         };
 
-
         let bullet_texture = Texture::new("angrygl_assets/bullet/bullet_texture_transparent.png", &texture_config).unwrap();
         // let bullet_texture = Texture::new("angrygl_assets/bullet/red_bullet_transparent.png", &texture_config).unwrap();
         // let bullet_texture = Texture::new("angrygl_assets/bullet/red_and_green_bullet_transparent.png", &texture_config).unwrap();
@@ -170,14 +169,7 @@ impl BulletStore {
 
             // location 1: texture coordinates
             gl::EnableVertexAttribArray(1);
-            gl::VertexAttribPointer(
-                1,
-                2,
-                gl::FLOAT,
-                gl::FALSE,
-                (5 * SIZE_OF_FLOAT) as GLsizei,
-                (3 * SIZE_OF_FLOAT) as *const GLvoid,
-            );
+            gl::VertexAttribPointer(1, 2, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, (3 * SIZE_OF_FLOAT) as *const GLvoid);
 
             // instance vbo
             gl::GenBuffers(1, &mut instance_vbo);
@@ -258,27 +250,25 @@ impl BulletStore {
         for p in 0..parallelism {
             let iStart = p * workerGroupSize;
 
-            let iEnd = if p == (parallelism - 1) {
-                spreadAmount
-            } else {
-                iStart + workerGroupSize
-            };
+            let iEnd = if p == (parallelism - 1) { spreadAmount } else { iStart + workerGroupSize };
 
             let spread_centering = ROTATION_PER_BULLET * (spreadAmount as f32 - 1.0) / 4.0;
             // let spread_centering = 0.0;
 
             for i in iStart..iEnd {
+                let noise = random_clamped() * 0.02;
+
                 let yQuat = midDirQuat
                     * Quat::from_axis_angle(
                         vec3(0.0, 1.0, 0.0),
-                        ROTATION_PER_BULLET * ((i - spreadAmount) as f32 / 2.0) + spread_centering,
+                        ROTATION_PER_BULLET * ((i - spreadAmount) as f32 / 2.0) + spread_centering + noise,
                     );
 
                 for j in 0..spreadAmount {
                     let rotQuat = yQuat
                         * Quat::from_axis_angle(
                             vec3(1.0, 0.0, 0.0),
-                            ROTATION_PER_BULLET * ((j - spreadAmount) as f32 / 2.0) + spread_centering,
+                            ROTATION_PER_BULLET * ((j - spreadAmount) as f32 / 2.0) + spread_centering + noise,
                         );
 
                     let dir_glam = rotQuat.mul_vec3(CANONICAL_DIR * -1.0);
@@ -329,8 +319,7 @@ impl BulletStore {
                     bullet_end += bullet_group_start_index;
 
                     for bullet_index in bullet_start..bullet_end {
-                        self.all_bullet_positions[bullet_index as usize] +=
-                            self.all_bullet_directions[bullet_index as usize] * delta_position_magnitude;
+                        self.all_bullet_positions[bullet_index as usize] += self.all_bullet_directions[bullet_index as usize] * delta_position_magnitude;
                     }
 
                     let mut subgroup_bound_box = AABB::new();
@@ -394,6 +383,7 @@ impl BulletStore {
         for enemy in state.enemies.iter() {
             if !enemy.is_alive {
                 self.bulletImpactSprites.push(SpriteSheetSprite::new(enemy.position));
+                state.burn_marks.add_mark(enemy.position);
             }
         }
 
@@ -477,6 +467,8 @@ impl BulletStore {
 
         unsafe {
             gl::Enable(gl::BLEND);
+            // gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
+            gl::DepthMask(gl::FALSE);
             gl::Disable(gl::CULL_FACE);
 
             gl::ActiveTexture(gl::TEXTURE0 + self.bulletImpactSpritesheet.texture.id);
@@ -512,6 +504,7 @@ impl BulletStore {
         unsafe {
             gl::Disable(gl::BLEND);
             gl::Enable(gl::CULL_FACE);
+            gl::DepthMask(gl::TRUE);
         }
     }
 }

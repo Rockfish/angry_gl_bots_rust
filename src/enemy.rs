@@ -18,11 +18,7 @@ pub struct Enemy {
 
 impl Enemy {
     pub fn new(position: Vec3, dir: Vec3) -> Self {
-        Enemy {
-            position,
-            dir,
-            is_alive: true,
-        }
+        Enemy { position, dir, is_alive: true }
     }
 }
 
@@ -76,7 +72,7 @@ pub fn chase_player(state: &mut State) {
             let dist = distanceBetweenPointAndLineSegment(&playerCollisionPosition, &p1, &p2);
 
             if dist <= (PLAYER_COLLISION_RADIUS + ENEMY_COLLIDER.radius) {
-                println!("GOTTEM!");
+                // println!("GOTTEM!");
                 state.player.isAlive = false;
                 state.player.player_direction = vec2(0.0, 0.0);
             }

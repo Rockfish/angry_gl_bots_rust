@@ -62,14 +62,7 @@ impl Floor {
             );
             gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, null!());
             gl::EnableVertexAttribArray(0);
-            gl::VertexAttribPointer(
-                1,
-                2,
-                gl::FLOAT,
-                gl::FALSE,
-                (5 * SIZE_OF_FLOAT) as GLsizei,
-                (3 * SIZE_OF_FLOAT) as *const GLvoid,
-            );
+            gl::VertexAttribPointer(1, 2, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, (3 * SIZE_OF_FLOAT) as *const GLvoid);
             gl::EnableVertexAttribArray(1);
         }
 

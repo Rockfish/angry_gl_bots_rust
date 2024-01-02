@@ -44,6 +44,7 @@ impl AABB {
         }
     }
 
+    #[rustfmt::skip]
     pub fn contains_point(&self, point: Vec3) -> bool {
         point.x >= self.x_min
             && point.x <= self.x_max
@@ -54,6 +55,7 @@ impl AABB {
     }
 }
 
+#[rustfmt::skip]
 pub fn aabbs_intersect(a: &AABB, b: &AABB) -> bool {
     a.contains_point(vec3(b.x_min, b.y_min, b.z_min))
         || a.contains_point(vec3(b.x_min, b.y_min, b.z_max))
