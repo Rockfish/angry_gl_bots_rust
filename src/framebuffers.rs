@@ -129,7 +129,7 @@ pub fn create_scene_fbo(viewportWidth: i32, viewportHeight: i32) -> FrameBuffer 
         gl::RenderbufferStorage(gl::RENDERBUFFER, gl::DEPTH24_STENCIL8, viewportWidth, viewportHeight);
         gl::FramebufferRenderbuffer(gl::FRAMEBUFFER, gl::DEPTH_STENCIL_ATTACHMENT, gl::RENDERBUFFER, rbo);
 
-        if (gl::CheckFramebufferStatus(gl::FRAMEBUFFER) != gl::FRAMEBUFFER_COMPLETE) {
+        if gl::CheckFramebufferStatus(gl::FRAMEBUFFER) != gl::FRAMEBUFFER_COMPLETE {
             panic!("Frame buffer not complete!");
         }
 
@@ -171,7 +171,7 @@ pub fn create_horizontal_blur_fbo(viewportWidth: i32, viewportHeight: i32) -> Fr
 
         gl::FramebufferTexture2D(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, horzBlurBuffer, 0);
 
-        if (gl::CheckFramebufferStatus(gl::FRAMEBUFFER) != gl::FRAMEBUFFER_COMPLETE) {
+        if gl::CheckFramebufferStatus(gl::FRAMEBUFFER) != gl::FRAMEBUFFER_COMPLETE {
             panic!("Frame buffer not complete!");
         }
 
@@ -209,7 +209,7 @@ pub fn create_vertical_blur_fbo(viewportWidth: i32, viewportHeight: i32) -> Fram
         gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as GLint);
         gl::FramebufferTexture2D(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, vertBlurBuffer, 0);
 
-        if (gl::CheckFramebufferStatus(gl::FRAMEBUFFER) != gl::FRAMEBUFFER_COMPLETE) {
+        if gl::CheckFramebufferStatus(gl::FRAMEBUFFER) != gl::FRAMEBUFFER_COMPLETE {
             panic!("Frame buffer not complete!");
         }
 

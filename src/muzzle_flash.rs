@@ -4,7 +4,7 @@ use small_gl_core::gl;
 use small_gl_core::gl::GLuint;
 use small_gl_core::model::Model;
 use small_gl_core::shader::Shader;
-use small_gl_core::texture::{Texture, TextureConfig, TextureWrap};
+use small_gl_core::texture::{bind_texture, Texture, TextureConfig, TextureWrap};
 use std::rc::Rc;
 
 pub struct MuzzleFlash {
@@ -54,20 +54,17 @@ impl MuzzleFlash {
         }
 
         sprite_shader.use_shader();
+        sprite_shader.set_mat4("PV", &PV);
 
         unsafe {
             gl::Enable(gl::BLEND);
             gl::DepthMask(gl::FALSE);
-
-            sprite_shader.set_mat4("PV", &PV);
-
-            gl::ActiveTexture(gl::TEXTURE0 + self.muzzleFlashImpactSpritesheet.texture.id);
-            gl::BindTexture(gl::TEXTURE_2D, self.muzzleFlashImpactSpritesheet.texture.id as GLuint);
             gl::BindVertexArray(self.unitSquareVAO as GLuint);
         }
 
+        bind_texture(sprite_shader, 0, "spritesheet", &self.muzzleFlashImpactSpritesheet.texture);
+
         sprite_shader.set_int("numCols", self.muzzleFlashImpactSpritesheet.num_columns);
-        sprite_shader.set_int("spritesheet", self.muzzleFlashImpactSpritesheet.texture.id as i32);
         sprite_shader.set_float("timePerSprite", self.muzzleFlashImpactSpritesheet.time_per_sprite);
 
         let scale = 50.0f32;

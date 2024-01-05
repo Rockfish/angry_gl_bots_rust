@@ -1,8 +1,7 @@
-use crate::texture_cache::TextureCache;
 use glam::{vec3, Mat4, Vec3};
 use small_gl_core::gl::{GLsizei, GLsizeiptr, GLuint, GLvoid};
 use small_gl_core::shader::Shader;
-use small_gl_core::texture::{Texture, TextureConfig, TextureFilter, TextureType, TextureWrap};
+use small_gl_core::texture::{bind_texture, Texture, TextureConfig, TextureFilter, TextureType, TextureWrap};
 use small_gl_core::{gl, null, SIZE_OF_FLOAT};
 use std::rc::Rc;
 
@@ -25,9 +24,9 @@ pub struct Floor {
     pub floorVAO: GLuint,
     pub floorVBO: GLuint,
     pub shader: Rc<Shader>,
-    pub texture_floorDiffuse: Texture,
-    pub texture_floorNormal: Texture,
-    pub texture_floorSpec: Texture,
+    pub texture_floor_diffuse: Texture,
+    pub texture_floor_normal: Texture,
+    pub texture_floor_spec: Texture,
     pub texture_shadowMap: Texture,
 }
 
@@ -42,10 +41,10 @@ impl Floor {
             wrap: TextureWrap::Repeat,
         };
 
-        let texUnit_floorDiffuse = Texture::new("assets/Models/Floor D.png", &texture_config).unwrap();
-        let texUnit_floorNormal = Texture::new("assets/Models/Floor N.png", &texture_config).unwrap();
-        let texUnit_floorSpec = Texture::new("assets/Models/Floor M.png", &texture_config).unwrap();
-        let texUnit_shadowMap = Texture::new("assets/Models/Floor D.png", &texture_config).unwrap();
+        let texture_floor_diffuse = Texture::new("assets/Models/Floor D.png", &texture_config).unwrap();
+        let texture_floor_normal = Texture::new("assets/Models/Floor N.png", &texture_config).unwrap();
+        let texture_floor_spec = Texture::new("assets/Models/Floor M.png", &texture_config).unwrap();
+        let texture_shadowMap = Texture::new("assets/Models/Floor D.png", &texture_config).unwrap();
 
         let mut floorVAO: GLuint = 0;
         let mut floorVBO: GLuint = 0;
@@ -70,10 +69,10 @@ impl Floor {
             floorVAO,
             floorVBO,
             shader: shader.clone(),
-            texture_floorDiffuse: texUnit_floorDiffuse,
-            texture_floorNormal: texUnit_floorNormal,
-            texture_floorSpec: texUnit_floorSpec,
-            texture_shadowMap: texUnit_shadowMap,
+            texture_floor_diffuse,
+            texture_floor_normal,
+            texture_floor_spec,
+            texture_shadowMap,
         }
     }
 
@@ -81,10 +80,10 @@ impl Floor {
         //}, light_space_matrix: Option<Mat4>) {
         self.shader.use_shader();
 
-        set_texture(&self.shader, 0, "texture_diffuse", &self.texture_floorDiffuse);
-        set_texture(&self.shader, 1, "texture_normal", &self.texture_floorNormal);
-        set_texture(&self.shader, 2, "texture_spec", &self.texture_floorSpec);
-        set_texture(&self.shader, 3, "shadow_map", &self.texture_shadowMap);
+        bind_texture(&self.shader, 0, "texture_diffuse", &self.texture_floor_diffuse);
+        bind_texture(&self.shader, 1, "texture_normal", &self.texture_floor_normal);
+        bind_texture(&self.shader, 2, "texture_spec", &self.texture_floor_spec);
+        bind_texture(&self.shader, 3, "shadow_map", &self.texture_shadowMap);
 
         // self.shader.setBool("useLight", light_space_matrix.is_some());
         // self.shader.setBool("useSpec", light_space_matrix.is_some());
@@ -106,13 +105,5 @@ impl Floor {
             gl::BindVertexArray(self.floorVAO);
             gl::DrawArrays(gl::TRIANGLES, 0, 6);
         }
-    }
-}
-
-pub fn set_texture(shader: &Rc<Shader>, texture_unit: i32, sample_name: &str, texture: &Texture) {
-    unsafe {
-        gl::ActiveTexture(gl::TEXTURE0 + texture_unit as u32);
-        gl::BindTexture(gl::TEXTURE_2D, texture.id);
-        shader.set_int(sample_name, texture_unit);
     }
 }

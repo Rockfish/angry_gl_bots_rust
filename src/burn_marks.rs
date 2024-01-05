@@ -1,9 +1,8 @@
-use crate::floor::set_texture;
 use glam::{vec3, Mat4, Vec3};
 use small_gl_core::gl;
 use small_gl_core::gl::GLuint;
 use small_gl_core::shader::Shader;
-use small_gl_core::texture::{Texture, TextureConfig, TextureWrap};
+use small_gl_core::texture::{bind_texture, Texture, TextureConfig, TextureWrap};
 use std::rc::Rc;
 
 const BURN_MARK_TIME: f32 = 5.0;
@@ -45,18 +44,14 @@ impl BurnMarks {
 
         shader.use_shader();
         shader.set_mat4("PV", &PV);
-        set_texture(shader, 0, "texture_diffuse", &self.mark_texture);
-        set_texture(shader, 1, "texture_normal", &self.mark_texture);
-        set_texture(shader, 2, "texture_spec", &self.mark_texture);
-        set_texture(shader, 3, "shadow_map", &self.mark_texture);
+
+        bind_texture(shader, 0, "texture_diffuse", &self.mark_texture);
+        bind_texture(shader, 1, "texture_normal", &self.mark_texture);
 
         unsafe {
             gl::DepthMask(gl::FALSE);
             gl::Enable(gl::BLEND);
             gl::Disable(gl::CULL_FACE);
-
-            gl::ActiveTexture(gl::TEXTURE0 + self.mark_texture.id);
-            gl::BindTexture(gl::TEXTURE_2D, self.mark_texture.id as GLuint);
             gl::BindVertexArray(self.unitSquareVAO as GLuint);
         }
 

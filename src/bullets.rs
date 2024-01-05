@@ -7,7 +7,7 @@ use crate::State;
 use glam::{vec3, vec4, Mat4, Quat, Vec3, Vec4Swizzles};
 use small_gl_core::gl::{GLsizei, GLsizeiptr, GLuint, GLvoid};
 use small_gl_core::shader::Shader;
-use small_gl_core::texture::{Texture, TextureConfig, TextureFilter, TextureType, TextureWrap};
+use small_gl_core::texture::{bind_texture, Texture, TextureConfig, TextureFilter, TextureType, TextureWrap};
 use small_gl_core::utils::random_clamped;
 use small_gl_core::{gl, SIZE_OF_FLOAT, SIZE_OF_QUAT, SIZE_OF_VEC3};
 use std::f32::consts::PI;
@@ -402,19 +402,14 @@ impl BulletStore {
 
             gl::DepthMask(gl::FALSE);
             gl::Disable(gl::CULL_FACE);
-
-            gl::ActiveTexture(gl::TEXTURE0 + self.bullet_texture.id);
-            gl::BindTexture(gl::TEXTURE_2D, self.bullet_texture.id);
         }
 
         shader.use_shader();
-
-        shader.set_int("texture_diffuse", self.bullet_texture.id as i32);
-        shader.set_int("texture_normal", self.bullet_texture.id as i32);
-
+        shader.set_mat4("PV", projectionView);
         shader.set_bool("useLight", false);
 
-        shader.set_mat4("PV", projectionView);
+        bind_texture(shader, 0, "texture_diffuse", &self.bullet_texture);
+        bind_texture(shader, 1, "texture_normal", &self.bullet_texture);
 
         self.renderBulletSprites();
 
@@ -462,8 +457,9 @@ impl BulletStore {
         spriteShader.set_mat4("PV", projection_view);
 
         spriteShader.set_int("numCols", self.bulletImpactSpritesheet.num_columns);
-        spriteShader.set_int("spritesheet", self.bulletImpactSpritesheet.texture.id as i32);
         spriteShader.set_float("timePerSprite", self.bulletImpactSpritesheet.time_per_sprite);
+
+        bind_texture(spriteShader, 0, "spritesheet", &self.bulletImpactSpritesheet.texture);
 
         unsafe {
             gl::Enable(gl::BLEND);
@@ -471,8 +467,6 @@ impl BulletStore {
             gl::DepthMask(gl::FALSE);
             gl::Disable(gl::CULL_FACE);
 
-            gl::ActiveTexture(gl::TEXTURE0 + self.bulletImpactSpritesheet.texture.id);
-            gl::BindTexture(gl::TEXTURE_2D, self.bulletImpactSpritesheet.texture.id as GLuint);
             gl::BindVertexArray(self.unitSquareVAO as GLuint);
         }
 

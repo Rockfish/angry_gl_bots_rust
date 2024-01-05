@@ -26,14 +26,14 @@ const ENEMY_SPAWN_INTERVAL: f32 = 1.0; // seconds
 const SPAWNS_PER_INTERVAL: i32 = 1;
 const SPAWN_RADIUS: f32 = 10.0; // from player
 
-pub struct EnemySpawner {
+pub struct EnemySystem {
     count_down: f32,
     monster_y: f32,
 }
 
-impl EnemySpawner {
+impl EnemySystem {
     pub fn new(monster_y: f32) -> Self {
-        EnemySpawner {
+        EnemySystem {
             count_down: ENEMY_SPAWN_INTERVAL,
             monster_y,
         }
@@ -55,54 +55,54 @@ impl EnemySpawner {
         let z = state.player.position.z + theta.cos() * SPAWN_RADIUS;
         state.enemies.push(Enemy::new(vec3(x, self.monster_y, z), vec3(0.0, 0.0, 1.0)));
     }
-}
 
-pub fn chase_player(state: &mut State) {
-    let playerCollisionPosition = vec3(state.player.position.x, MONSTER_Y, state.player.position.z);
+    pub fn chase_player(&self, state: &mut State) {
+        let playerCollisionPosition = vec3(state.player.position.x, MONSTER_Y, state.player.position.z);
 
-    for enemy in state.enemies.iter_mut() {
-        let mut dir = state.player.position - enemy.position;
-        dir.y = 0.0;
-        enemy.dir = dir.normalize_or_zero();
-        enemy.position += enemy.dir * state.delta_time * MONSTER_SPEED;
+        for enemy in state.enemies.iter_mut() {
+            let mut dir = state.player.position - enemy.position;
+            dir.y = 0.0;
+            enemy.dir = dir.normalize_or_zero();
+            enemy.position += enemy.dir * state.delta_time * MONSTER_SPEED;
 
-        if state.player.isAlive {
-            let p1 = enemy.position - enemy.dir * (ENEMY_COLLIDER.height / 2.0);
-            let p2 = enemy.position + enemy.dir * (ENEMY_COLLIDER.height / 2.0);
-            let dist = distanceBetweenPointAndLineSegment(&playerCollisionPosition, &p1, &p2);
+            if state.player.isAlive {
+                let p1 = enemy.position - enemy.dir * (ENEMY_COLLIDER.height / 2.0);
+                let p2 = enemy.position + enemy.dir * (ENEMY_COLLIDER.height / 2.0);
+                let dist = distanceBetweenPointAndLineSegment(&playerCollisionPosition, &p1, &p2);
 
-            if dist <= (PLAYER_COLLISION_RADIUS + ENEMY_COLLIDER.radius) {
-                // println!("GOTTEM!");
-                state.player.isAlive = false;
-                state.player.player_direction = vec2(0.0, 0.0);
+                if dist <= (PLAYER_COLLISION_RADIUS + ENEMY_COLLIDER.radius) {
+                    // println!("GOTTEM!");
+                    state.player.isAlive = false;
+                    state.player.player_direction = vec2(0.0, 0.0);
+                }
             }
         }
     }
-}
 
-pub fn draw_enemies(wigglyBoi: &Model, shader: &Rc<Shader>, state: &mut State) {
-    shader.use_shader();
-    shader.set_vec3("nosePos", &vec3(1.0, MONSTER_Y, -2.0));
-    shader.set_float("time", state.frame_time);
+    pub fn draw_enemies(&self, enemy_model: &Model, shader: &Rc<Shader>, state: &mut State) {
+        shader.use_shader();
+        shader.set_vec3("nosePos", &vec3(1.0, MONSTER_Y, -2.0));
+        shader.set_float("time", state.frame_time);
 
-    // TODO optimise (multithreaded, instancing, SOA, etc..)
-    for e in state.enemies.iter_mut() {
-        let monsterTheta = (e.dir.x / e.dir.z).atan() + (if e.dir.z < 0.0 { 0.0 } else { PI });
+        // TODO optimise (multithreaded, instancing, SOA, etc..)
+        for e in state.enemies.iter_mut() {
+            let monsterTheta = (e.dir.x / e.dir.z).atan() + (if e.dir.z < 0.0 { 0.0 } else { PI });
 
-        let mut model_transform = Mat4::from_translation(e.position);
+            let mut model_transform = Mat4::from_translation(e.position);
 
-        model_transform *= Mat4::from_scale(Vec3::splat(0.01));
-        model_transform *= Mat4::from_axis_angle(vec3(0.0, 1.0, 0.0), monsterTheta);
-        model_transform *= Mat4::from_axis_angle(vec3(0.0, 0.0, 1.0), PI);
-        model_transform *= Mat4::from_axis_angle(vec3(1.0, 0.0, 0.0), 90.0f32.to_radians());
+            model_transform *= Mat4::from_scale(Vec3::splat(0.01));
+            model_transform *= Mat4::from_axis_angle(vec3(0.0, 1.0, 0.0), monsterTheta);
+            model_transform *= Mat4::from_axis_angle(vec3(0.0, 0.0, 1.0), PI);
+            model_transform *= Mat4::from_axis_angle(vec3(1.0, 0.0, 0.0), 90.0f32.to_radians());
 
-        let mut rot_only = Mat4::from_axis_angle(vec3(0.0, 1.0, 0.0), monsterTheta);
-        rot_only = Mat4::from_axis_angle(vec3(0.0, 0.0, 1.0), PI);
-        rot_only = Mat4::from_axis_angle(vec3(1.0, 0.0, 0.0), 90.0f32.to_radians());
+            let mut rot_only = Mat4::from_axis_angle(vec3(0.0, 1.0, 0.0), monsterTheta);
+            rot_only = Mat4::from_axis_angle(vec3(0.0, 0.0, 1.0), PI);
+            rot_only = Mat4::from_axis_angle(vec3(1.0, 0.0, 0.0), 90.0f32.to_radians());
 
-        shader.set_mat4("aimRot", &rot_only);
-        shader.set_mat4("model", &model_transform);
+            shader.set_mat4("aimRot", &rot_only);
+            shader.set_mat4("model", &model_transform);
 
-        wigglyBoi.render(shader);
+            enemy_model.render(shader);
+        }
     }
 }

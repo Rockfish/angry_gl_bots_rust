@@ -24,7 +24,7 @@ extern crate glfw;
 
 use crate::bullets::BulletStore;
 use crate::burn_marks::BurnMarks;
-use crate::enemy::{chase_player, draw_enemies, Enemy, EnemySpawner};
+use crate::enemy::{Enemy, EnemySystem};
 use crate::floor::Floor;
 use crate::framebuffers::{create_depth_map_fbo, create_emission_fbo, create_horizontal_blur_fbo, create_scene_fbo, create_vertical_blur_fbo};
 use crate::muzzle_flash::{get_muzzle_position, MuzzleFlash};
@@ -177,12 +177,32 @@ fn main() {
     let muzzle_point_light_color = vec3(1.0, 0.2, 0.0);
 
     println!("Loading assets");
+    /*
+    angrygl/main.cc
+        Shader blurShader = Shader::create("angrygl/basicer_shader.vert", "angrygl/blur_shader.frag");
+        Shader basicerShader = Shader::create("angrygl/basicer_shader.vert", "angrygl/basicer_shader.frag");
+        Shader sceneDrawShader = Shader::create("angrygl/basicer_shader.vert", "angrygl/texture_merge_shader.frag");
+        Shader simpleDepthShader = Shader::create("angrygl/depth_shader.vert", "angrygl/depth_shader.frag");
+        Shader wigglyShader = Shader::create("angrygl/wiggly_shader.vert", "angrygl/player_shader.frag");
+        Shader playerShader = Shader::create("angrygl/player_shader.vert", "angrygl/player_shader.frag");
+        Shader instancedTextureShader = Shader::create("angrygl/instanced_texture_shader.vert", "angrygl/basic_texture_shader.frag");
+        Shader nodeShader = Shader::create("angrygl/redshader.vert", "angrygl/redshader.frag");
+        Shader spriteShader = Shader::create("angrygl/geom_shader2.vert", "angrygl/sprite_shader.frag");
+        Shader textureShader = Shader::create("angrygl/geom_shader.vert", "angrygl/texture_shader.frag");
+
+        // floor!
+        Shader basicTextureShader = Shader::create("angrygl/basic_texture_shader.vert", "angrygl/floor_shader.frag");
+     */
+
+    // for debug
+    let basicerShader = Shader::new("shaders/basicer_shader.vert", "shaders/basicer_shader.frag").unwrap();
 
     let playerShader = Rc::new(Shader::new("shaders/player_shader.vert", "shaders/player_shader.frag").unwrap());
     let wigglyShader = Rc::new(Shader::new("shaders/wiggly_shader.vert", "shaders/player_shader.frag").unwrap());
 
-    let basicerShader = Shader::new("shaders/basicer_shader.vert", "shaders/basicer_shader.frag").unwrap();
+    let floor_shader = Rc::new(Shader::new("shaders/basic_texture_shader.vert", "shaders/floor_shader.frag").unwrap());
     let basicTextureShader = Rc::new(Shader::new("shaders/basic_texture_shader.vert", "shaders/basic_texture_shader.frag").unwrap());
+
     let blurShader = Shader::new("shaders/basicer_shader.vert", "shaders/blur_shader.frag").unwrap();
     let sceneDrawShader = Shader::new("shaders/basicer_shader.vert", "shaders/texture_merge_shader.frag").unwrap();
     let simpleDepthShader = Rc::new(Shader::new("shaders/depth_shader.vert", "shaders/depth_shader.frag").unwrap());
@@ -222,7 +242,7 @@ fn main() {
     let left = Rc::new(AnimationClip::new("left", 209.0, 229.0, AnimationRepeat::Forever));
     let dying = Rc::new(AnimationClip::new("dying", 234.0, 293.0, AnimationRepeat::Once));
 
-    let wigglyBoi = ModelBuilder::new("dog", "assets/Models/Eeldog/EelDog.FBX").build().unwrap();
+    let enemy_model = ModelBuilder::new("enemy", "assets/Models/Eeldog/EelDog.FBX").build().unwrap();
 
     // let mut texture_cache = TextureCache::new();
     let texture_config = TextureConfig::new().set_wrap(TextureWrap::Repeat);
@@ -232,7 +252,7 @@ fn main() {
     let texUnit_horzBlur = Texture::new("", &texture_config);
     let texUnit_scene = Texture::new("", &texture_config);
 
-    let floor = Floor::new(&basicTextureShader);
+    let floor = Floor::new(&floor_shader);
 
     // Framebuffers
 
@@ -330,7 +350,7 @@ fn main() {
 
     // let mut muzzleFlashSpritesAge: Vec<f32> = vec![];
 
-    let mut enemy_spawner = EnemySpawner::new(MONSTER_Y);
+    let mut enemy_system = EnemySystem::new(MONSTER_Y);
     let mut muzzle_flash = MuzzleFlash::new(unit_square_quad);
     let mut bulletStore = BulletStore::new(unit_square_quad);
 
@@ -385,8 +405,8 @@ fn main() {
         bulletStore.update_bullets(&mut state);
 
         if state.player.isAlive {
-            enemy_spawner.update(&mut state);
-            chase_player(&mut state);
+            enemy_system.update(&mut state);
+            enemy_system.chase_player(&mut state);
         }
 
         state.game_camera.position = state.player.position + cameraFollowVec.clone();
@@ -536,7 +556,7 @@ fn main() {
         wigglyShader.set_bool("useLight", false);
         wigglyShader.set_vec3("ambient", &ambientColor);
 
-        draw_enemies(&wigglyBoi, &wigglyShader, &mut state);
+        enemy_system.draw_enemies(&enemy_model, &wigglyShader, &mut state);
 
         state.burn_marks.draw_marks(&basicTextureShader, &projection_view, state.delta_time);
 
@@ -579,8 +599,10 @@ fn main() {
 
             gl::BindFramebuffer(gl::FRAMEBUFFER, vertical_blur_fbo.framebuffer_id);
             gl::BindVertexArray(moreObnoxiousQuadVAO as GLuint);
+
             blurShader.use_shader();
             blurShader.set_int("image", horizontal_blur_fbo.texture_id as i32);
+
             blurShader.set_bool("horizontal", false);
             gl::DrawArrays(gl::TRIANGLES, 0, 6);
 

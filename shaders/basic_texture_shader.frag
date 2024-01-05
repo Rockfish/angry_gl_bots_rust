@@ -12,6 +12,7 @@ uniform DirectionLight directionLight;
 
 uniform sampler2D texture_diffuse;
 uniform sampler2D texture_normal;
+
 uniform bool useLight;
 uniform vec3 ambient;
 
