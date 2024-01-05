@@ -390,7 +390,7 @@ impl BulletStore {
         state.enemies.retain(|e| e.is_alive);
     }
 
-    pub fn draw_bullets(&mut self, shader: &Rc<Shader>, projectionView: &Mat4) {
+    pub fn draw_bullets(&mut self, shader: &Shader, projectionView: &Mat4) {
         if self.all_bullet_positions.is_empty() {
             return;
         }
@@ -452,7 +452,7 @@ impl BulletStore {
         }
     }
 
-    pub fn draw_bullet_impacts(&self, spriteShader: &Rc<Shader>, projection_view: &Mat4, view_transform: &Mat4) {
+    pub fn draw_bullet_impacts(&self, spriteShader: &Shader, projection_view: &Mat4, view_transform: &Mat4) {
         spriteShader.use_shader();
         spriteShader.set_mat4("PV", projection_view);
 

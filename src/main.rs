@@ -197,20 +197,20 @@ fn main() {
     // for debug
     let basicerShader = Shader::new("shaders/basicer_shader.vert", "shaders/basicer_shader.frag").unwrap();
 
-    let playerShader = Rc::new(Shader::new("shaders/player_shader.vert", "shaders/player_shader.frag").unwrap());
-    let wigglyShader = Rc::new(Shader::new("shaders/wiggly_shader.vert", "shaders/player_shader.frag").unwrap());
+    let playerShader = Shader::new("shaders/player_shader.vert", "shaders/player_shader.frag").unwrap();
+    let wigglyShader = Shader::new("shaders/wiggly_shader.vert", "shaders/player_shader.frag").unwrap();
 
-    let floor_shader = Rc::new(Shader::new("shaders/basic_texture_shader.vert", "shaders/floor_shader.frag").unwrap());
-    let basicTextureShader = Rc::new(Shader::new("shaders/basic_texture_shader.vert", "shaders/basic_texture_shader.frag").unwrap());
+    let floor_shader = Shader::new("shaders/basic_texture_shader.vert", "shaders/floor_shader.frag").unwrap();
+    let basicTextureShader = Shader::new("shaders/basic_texture_shader.vert", "shaders/basic_texture_shader.frag").unwrap();
 
     let blurShader = Shader::new("shaders/basicer_shader.vert", "shaders/blur_shader.frag").unwrap();
     let sceneDrawShader = Shader::new("shaders/basicer_shader.vert", "shaders/texture_merge_shader.frag").unwrap();
-    let simpleDepthShader = Rc::new(Shader::new("shaders/depth_shader.vert", "shaders/depth_shader.frag").unwrap());
-    let textureShader = Rc::new(Shader::new("shaders/geom_shader.vert", "shaders/texture_shader.frag").unwrap());
+    let simpleDepthShader = Shader::new("shaders/depth_shader.vert", "shaders/depth_shader.frag").unwrap();
+    let textureShader = Shader::new("shaders/geom_shader.vert", "shaders/texture_shader.frag").unwrap();
 
-    let sprite_shader = Rc::new(Shader::new("shaders/geom_shader2.vert", "shaders/sprite_shader.frag").unwrap());
+    let sprite_shader = Shader::new("shaders/geom_shader2.vert", "shaders/sprite_shader.frag").unwrap();
 
-    let instancedTextureShader = Rc::new(Shader::new("shaders/instanced_texture_shader.vert", "shaders/basic_texture_shader.frag").unwrap());
+    let instancedTextureShader = Shader::new("shaders/instanced_texture_shader.vert", "shaders/basic_texture_shader.frag").unwrap();
 
     simpleDepthShader.use_shader();
     let lsml = simpleDepthShader.get_uniform_location("lightSpaceMatrix");
@@ -252,7 +252,7 @@ fn main() {
     let texUnit_horzBlur = Texture::new("", &texture_config);
     let texUnit_scene = Texture::new("", &texture_config);
 
-    let floor = Floor::new(&floor_shader);
+    let floor = Floor::new();
 
     // Framebuffers
 
@@ -492,7 +492,7 @@ fn main() {
         }
 
         // --- draw floor
-        floor.draw(&projection_view, &ambientColor);
+        floor.draw(&floor_shader, &projection_view, &ambientColor);
 
         // --- draw player with shadows
         {}

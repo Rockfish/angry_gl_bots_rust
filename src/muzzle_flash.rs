@@ -48,7 +48,7 @@ impl MuzzleFlash {
         self.muzzleFlashSpritesAge.push(0.0);
     }
 
-    pub fn draw(&self, sprite_shader: &Rc<Shader>, PV: &Mat4, muzzleTransform: &Mat4) {
+    pub fn draw(&self, sprite_shader: &Shader, PV: &Mat4, muzzleTransform: &Mat4) {
         if self.muzzleFlashSpritesAge.is_empty() {
             return;
         }

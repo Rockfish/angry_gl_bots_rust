@@ -37,7 +37,7 @@ impl BurnMarks {
         });
     }
 
-    pub fn draw_marks(&mut self, shader: &Rc<Shader>, PV: &Mat4, delta_time: f32) {
+    pub fn draw_marks(&mut self, shader: &Shader, PV: &Mat4, delta_time: f32) {
         if self.marks.is_empty() {
             return;
         }

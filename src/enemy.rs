@@ -79,7 +79,7 @@ impl EnemySystem {
         }
     }
 
-    pub fn draw_enemies(&self, enemy_model: &Model, shader: &Rc<Shader>, state: &mut State) {
+    pub fn draw_enemies(&self, enemy_model: &Model, shader: &Shader, state: &mut State) {
         shader.use_shader();
         shader.set_vec3("nosePos", &vec3(1.0, MONSTER_Y, -2.0));
         shader.set_float("time", state.frame_time);

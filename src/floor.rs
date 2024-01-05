@@ -23,7 +23,6 @@ const FLOOR_VERTICES: [f32; 30] = [
 pub struct Floor {
     pub floorVAO: GLuint,
     pub floorVBO: GLuint,
-    pub shader: Rc<Shader>,
     pub texture_floor_diffuse: Texture,
     pub texture_floor_normal: Texture,
     pub texture_floor_spec: Texture,
@@ -31,7 +30,7 @@ pub struct Floor {
 }
 
 impl Floor {
-    pub fn new(shader: &Rc<Shader>) -> Self {
+    pub fn new() -> Self {
         let texture_config = TextureConfig {
             flip_v: false,
             flip_h: false,
@@ -68,7 +67,6 @@ impl Floor {
         Floor {
             floorVAO,
             floorVBO,
-            shader: shader.clone(),
             texture_floor_diffuse,
             texture_floor_normal,
             texture_floor_spec,
@@ -76,30 +74,30 @@ impl Floor {
         }
     }
 
-    pub fn draw(&self, projection_view: &Mat4, ambientColor: &Vec3) {
+    pub fn draw(&self, shader: &Shader, projection_view: &Mat4, ambientColor: &Vec3) {
         //}, light_space_matrix: Option<Mat4>) {
-        self.shader.use_shader();
+        shader.use_shader();
 
-        bind_texture(&self.shader, 0, "texture_diffuse", &self.texture_floor_diffuse);
-        bind_texture(&self.shader, 1, "texture_normal", &self.texture_floor_normal);
-        bind_texture(&self.shader, 2, "texture_spec", &self.texture_floor_spec);
-        bind_texture(&self.shader, 3, "shadow_map", &self.texture_shadowMap);
+        bind_texture(&shader, 0, "texture_diffuse", &self.texture_floor_diffuse);
+        bind_texture(&shader, 1, "texture_normal", &self.texture_floor_normal);
+        bind_texture(&shader, 2, "texture_spec", &self.texture_floor_spec);
+        bind_texture(&shader, 3, "shadow_map", &self.texture_shadowMap);
 
-        // self.shader.setBool("useLight", light_space_matrix.is_some());
-        // self.shader.setBool("useSpec", light_space_matrix.is_some());
-        // self.shader.setVec3("pointLight.worldPos", muzzleWorldPos3);
-        // self.shader.setVec3("pointLight.color", muzzlePointLightColor);
+        // shader.setBool("useLight", light_space_matrix.is_some());
+        // shader.setBool("useSpec", light_space_matrix.is_some());
+        // shader.setVec3("pointLight.worldPos", muzzleWorldPos3);
+        // shader.setVec3("pointLight.color", muzzlePointLightColor);
 
         // angle floor
         let model = Mat4::from_axis_angle(vec3(0.0, 1.0, 0.0), 45.0f32.to_radians());
 
         let model = Mat4::IDENTITY;
 
-        self.shader.set_bool("useLight", false);
-        self.shader.set_vec3("ambient", ambientColor);
-        // self.shader.setVec3("viewPos", camera_pos);
-        self.shader.set_mat4("PV", projection_view);
-        self.shader.set_mat4("model", &model);
+        shader.set_bool("useLight", false);
+        shader.set_vec3("ambient", ambientColor);
+        // shader.setVec3("viewPos", camera_pos);
+        shader.set_mat4("PV", projection_view);
+        shader.set_mat4("model", &model);
 
         unsafe {
             gl::BindVertexArray(self.floorVAO);
