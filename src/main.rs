@@ -197,31 +197,31 @@ fn main() {
     // for debug
     let basicerShader = Shader::new("shaders/basicer_shader.vert", "shaders/basicer_shader.frag").unwrap();
 
-    let playerShader = Shader::new("shaders/player_shader.vert", "shaders/player_shader.frag").unwrap();
-    let wigglyShader = Shader::new("shaders/wiggly_shader.vert", "shaders/player_shader.frag").unwrap();
+    let player_shader = Shader::new("shaders/player_shader.vert", "shaders/player_shader.frag").unwrap();
+    let wiggle_shader = Shader::new("shaders/wiggly_shader.vert", "shaders/player_shader.frag").unwrap();
 
     let floor_shader = Shader::new("shaders/basic_texture_shader.vert", "shaders/floor_shader.frag").unwrap();
-    let basicTextureShader = Shader::new("shaders/basic_texture_shader.vert", "shaders/basic_texture_shader.frag").unwrap();
+    let basic_texture_shader = Shader::new("shaders/basic_texture_shader.vert", "shaders/basic_texture_shader.frag").unwrap();
 
-    let blurShader = Shader::new("shaders/basicer_shader.vert", "shaders/blur_shader.frag").unwrap();
-    let sceneDrawShader = Shader::new("shaders/basicer_shader.vert", "shaders/texture_merge_shader.frag").unwrap();
-    let simpleDepthShader = Shader::new("shaders/depth_shader.vert", "shaders/depth_shader.frag").unwrap();
+    let blur_shader = Shader::new("shaders/basicer_shader.vert", "shaders/blur_shader.frag").unwrap();
+    let scene_draw_shader = Shader::new("shaders/basicer_shader.vert", "shaders/texture_merge_shader.frag").unwrap();
+    let simple_depth_shader = Shader::new("shaders/depth_shader.vert", "shaders/depth_shader.frag").unwrap();
     let textureShader = Shader::new("shaders/geom_shader.vert", "shaders/texture_shader.frag").unwrap();
 
     let sprite_shader = Shader::new("shaders/geom_shader2.vert", "shaders/sprite_shader.frag").unwrap();
 
-    let instancedTextureShader = Shader::new("shaders/instanced_texture_shader.vert", "shaders/basic_texture_shader.frag").unwrap();
+    let instanced_texture_shader = Shader::new("shaders/instanced_texture_shader.vert", "shaders/basic_texture_shader.frag").unwrap();
 
-    simpleDepthShader.use_shader();
-    let lsml = simpleDepthShader.get_uniform_location("lightSpaceMatrix");
+    simple_depth_shader.use_shader();
+    let lsml = simple_depth_shader.get_uniform_location("lightSpaceMatrix");
 
-    playerShader.use_shader();
+    player_shader.use_shader();
 
-    let playerLightSpaceMatrixLocation = playerShader.get_uniform_location("lightSpaceMatrix");
+    let playerLightSpaceMatrixLocation = player_shader.get_uniform_location("lightSpaceMatrix");
 
-    playerShader.set_vec3("directionLight.dir", &playerLightDir);
-    playerShader.set_vec3("directionLight.color", &lightColor);
-    playerShader.set_vec3("ambient", &ambientColor);
+    player_shader.set_vec3("directionLight.dir", &playerLightDir);
+    player_shader.set_vec3("directionLight.color", &lightColor);
+    player_shader.set_vec3("ambient", &ambientColor);
 
     let player_model = ModelBuilder::new("player", "assets/Models/Player/Player.fbx")
         .add_texture("Player", TextureType::Diffuse, "Textures/Player_D.tga")
@@ -497,7 +497,7 @@ fn main() {
         // --- draw player with shadows
         {}
 
-        playerShader.use_shader();
+        player_shader.use_shader();
 
         if muzzle_flash.muzzleFlashSpritesAge.len() > 0 {
             let min_age = muzzle_flash.get_min_age();
@@ -512,25 +512,25 @@ fn main() {
                 muzzle_world_position.z / muzzle_world_position.w,
             );
 
-            playerShader.set_bool("usePointLight", use_point_light);
-            playerShader.set_vec3("pointLight.worldPos", &muzzle_world_position3);
-            playerShader.set_vec3("pointLight.color", &muzzle_point_light_color);
+            player_shader.set_bool("usePointLight", use_point_light);
+            player_shader.set_vec3("pointLight.worldPos", &muzzle_world_position3);
+            player_shader.set_vec3("pointLight.color", &muzzle_point_light_color);
         } else {
             use_point_light = false;
-            playerShader.set_bool("usePointLight", use_point_light);
+            player_shader.set_bool("usePointLight", use_point_light);
         }
 
-        playerShader.set_mat4("projectionView", &projection_view);
-        playerShader.set_vec3("viewPos", &state.game_camera.position);
-        playerShader.set_mat4("model", &player_model_transform);
-        playerShader.set_mat4("aimRot", &aimRot);
+        player_shader.set_mat4("projectionView", &projection_view);
+        player_shader.set_vec3("viewPos", &state.game_camera.position);
+        player_shader.set_mat4("model", &player_model_transform);
+        player_shader.set_mat4("aimRot", &aimRot);
 
-        playerShader.set_mat4("lightSpaceMatrix", &Mat4::IDENTITY);
-        playerShader.set_bool("useLight", true);
-        playerShader.set_vec3("ambient", &ambientColor);
+        player_shader.set_mat4("lightSpaceMatrix", &Mat4::IDENTITY);
+        player_shader.set_bool("useLight", true);
+        player_shader.set_vec3("ambient", &ambientColor);
 
         player_model.update_animation(state.delta_time);
-        player_model.render(&playerShader);
+        player_model.render(&player_shader);
 
         muzzle_flash.draw(&sprite_shader, &projection_view, &muzzle_transform);
 
@@ -541,8 +541,8 @@ fn main() {
             }
         }
 
-        wigglyShader.use_shader();
-        wigglyShader.set_mat4("projectionView", &projection_view);
+        wiggle_shader.use_shader();
+        wiggle_shader.set_mat4("projectionView", &projection_view);
         // wigglyShader.set_vec3("viewPos", &vec3(0.0, 0.0, 1.0)); //camera_position);
         // wigglyShader.set_vec3("viewPos", &camera_position);
 
@@ -552,18 +552,18 @@ fn main() {
         // wigglyShader.set_mat4("model", &wiggly_transform);
         // wigglyShader.set_mat4("aimRot", &Mat4::IDENTITY);
 
-        wigglyShader.set_mat4("lightSpaceMatrix", &Mat4::IDENTITY);
-        wigglyShader.set_bool("useLight", false);
-        wigglyShader.set_vec3("ambient", &ambientColor);
+        wiggle_shader.set_mat4("lightSpaceMatrix", &Mat4::IDENTITY);
+        wiggle_shader.set_bool("useLight", false);
+        wiggle_shader.set_vec3("ambient", &ambientColor);
 
-        enemy_system.draw_enemies(&enemy_model, &wigglyShader, &mut state);
+        enemy_system.draw_enemies(&enemy_model, &wiggle_shader, &mut state);
 
-        state.burn_marks.draw_marks(&basicTextureShader, &projection_view, state.delta_time);
+        state.burn_marks.draw_marks(&basic_texture_shader, &projection_view, state.delta_time);
 
         bulletStore.draw_bullet_impacts(&sprite_shader, &projection_view, &game_view);
 
         // --- draw bullets
-        bulletStore.draw_bullets(&instancedTextureShader, &projection_view);
+        bulletStore.draw_bullets(&instanced_texture_shader, &projection_view);
 
         // blur
         unsafe {
@@ -591,31 +591,31 @@ fn main() {
 
             gl::BindVertexArray(moreObnoxiousQuadVAO as GLuint);
 
-            blurShader.use_shader();
-            blurShader.set_int("image", emissions_fbo.texture_id as i32);
-            blurShader.set_bool("horizontal", true);
+            blur_shader.use_shader();
+            blur_shader.set_int("image", emissions_fbo.texture_id as i32);
+            blur_shader.set_bool("horizontal", true);
             //
             gl::DrawArrays(gl::TRIANGLES, 0, 6);
 
             gl::BindFramebuffer(gl::FRAMEBUFFER, vertical_blur_fbo.framebuffer_id);
             gl::BindVertexArray(moreObnoxiousQuadVAO as GLuint);
 
-            blurShader.use_shader();
-            blurShader.set_int("image", horizontal_blur_fbo.texture_id as i32);
+            blur_shader.use_shader();
+            blur_shader.set_int("image", horizontal_blur_fbo.texture_id as i32);
 
-            blurShader.set_bool("horizontal", false);
+            blur_shader.set_bool("horizontal", false);
             gl::DrawArrays(gl::TRIANGLES, 0, 6);
 
             gl::Viewport(0, 0, viewport_width as GLsizei, viewport_height as GLsizei);
 
             // gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
             //
-            sceneDrawShader.use_shader();
+            scene_draw_shader.use_shader();
             gl::BindVertexArray(moreObnoxiousQuadVAO as GLuint);
 
-            sceneDrawShader.set_int("base_texture", scene_fbo.texture_id as i32);
-            sceneDrawShader.set_int("emission_texture", vertical_blur_fbo.texture_id as i32);
-            sceneDrawShader.set_int("bright_texture", emissions_fbo.texture_id as i32);
+            scene_draw_shader.set_int("base_texture", scene_fbo.texture_id as i32);
+            scene_draw_shader.set_int("emission_texture", vertical_blur_fbo.texture_id as i32);
+            scene_draw_shader.set_int("bright_texture", emissions_fbo.texture_id as i32);
 
             gl::DrawArrays(gl::TRIANGLES, 0, 6);
             gl::Enable(gl::DEPTH_TEST);
