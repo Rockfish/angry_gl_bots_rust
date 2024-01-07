@@ -22,19 +22,19 @@ mod texture_cache;
 
 extern crate glfw;
 
+use std::cell::RefCell;
 use crate::bullets::BulletStore;
 use crate::burn_marks::BurnMarks;
 use crate::enemy::{Enemy, EnemySystem};
 use crate::floor::Floor;
 use crate::framebuffers::{create_depth_map_fbo, create_emission_fbo, create_horizontal_blur_fbo, create_scene_fbo, create_vertical_blur_fbo};
-use crate::muzzle_flash::{get_muzzle_position, MuzzleFlash};
+use crate::muzzle_flash::{MuzzleFlash};
 use crate::player::Player;
 use crate::quads::{create_moreObnoxiousQuadVAO, create_unitSquareVAO};
 use glam::{vec2, vec3, vec4, Mat4, Vec3, Vec4Swizzles};
 use glfw::JoystickId::Joystick1;
 use glfw::{Action, Context, Key, MouseButton};
 use log::error;
-use small_gl_core::animator::{AnimationClip, AnimationRepeat};
 use small_gl_core::camera::{Camera, CameraMovement};
 use small_gl_core::gl;
 use small_gl_core::gl::{GLsizei, GLuint};
@@ -45,7 +45,6 @@ use small_gl_core::texture::{Texture, TextureConfig, TextureFilter, TextureType,
 use std::f32::consts::PI;
 use std::rc::Rc;
 use std::thread::sleep;
-use std::time::Duration;
 
 const PARALLELISM: i32 = 4;
 
@@ -80,7 +79,7 @@ const VIEW_PORT_HEIGHT: i32 = 1000;
 // Player
 const FIRE_INTERVAL: f32 = 0.1; // seconds
 const SPREAD_AMOUNT: i32 = 20;
-const PLAYER_SPEED: f32 = 1.5;
+
 const PLAYER_COLLISION_RADIUS: f32 = 0.35;
 
 // Models
@@ -124,7 +123,7 @@ struct State {
     first_mouse: bool,
     mouse_x: f32,
     mouse_y: f32,
-    player: Player,
+    player: Rc<RefCell<Player>>,
     enemies: Vec<Enemy>,
     burn_marks: BurnMarks,
     viewport_width: f32,
@@ -223,24 +222,13 @@ fn main() {
     playerShader.set_vec3("directionLight.color", &lightColor);
     playerShader.set_vec3("ambient", &ambientColor);
 
-    let player_model = ModelBuilder::new("player", "assets/Models/Player/Player.fbx")
-        .add_texture("Player", TextureType::Diffuse, "Textures/Player_D.tga")
-        .add_texture("Player", TextureType::Specular, "Textures/Player_M.tga")
-        .add_texture("Player", TextureType::Emissive, "Textures/Player_E.tga")
-        .add_texture("Player", TextureType::Normals, "Textures/Player_NRM.tga")
-        .add_texture("Gun", TextureType::Diffuse, "Textures/Gun_D.tga")
-        .add_texture("Gun", TextureType::Specular, "Textures/Gun_M.tga")
-        .add_texture("Gun", TextureType::Emissive, "Textures/Gun_E.tga")
-        .add_texture("Gun", TextureType::Normals, "Textures/Gun_NRM.tga")
-        .build()
-        .unwrap();
+    let idle: Rc<str> = Rc::from("idle");
+    let forward: Rc<str> = Rc::from("forward");
+    let backwards: Rc<str> = Rc::from("backwards");
+    let right: Rc<str> = Rc::from("right");
+    let left: Rc<str> = Rc::from("left");
+    let dying: Rc<str> = Rc::from("dying");
 
-    let idle = Rc::new(AnimationClip::new("idle", 55.0, 130.0, AnimationRepeat::Forever));
-    let forward = Rc::new(AnimationClip::new("forward", 134.0, 154.0, AnimationRepeat::Forever));
-    let backwards = Rc::new(AnimationClip::new("backwards", 159.0, 179.0, AnimationRepeat::Forever));
-    let right = Rc::new(AnimationClip::new("right", 184.0, 204.0, AnimationRepeat::Forever));
-    let left = Rc::new(AnimationClip::new("left", 209.0, 229.0, AnimationRepeat::Forever));
-    let dying = Rc::new(AnimationClip::new("dying", 234.0, 293.0, AnimationRepeat::Once));
 
     let enemy_model = ModelBuilder::new("enemy", "assets/Models/Eeldog/EelDog.FBX").build().unwrap();
 
@@ -306,16 +294,7 @@ fn main() {
     let ortho_camera = Camera::camera_vec3_up_yaw_pitch(vec3(0.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0), 0.0, -90.0);
 
     // Player
-    let player = Player {
-        lastFireTime: 0.0f32,
-        isTryingToFire: false,
-        isAlive: true,
-        aimTheta: 0.0f32,
-        position: vec3(0.0, 0.0, 0.0),
-        player_direction: vec2(0.0, 0.0),
-        animation_name: "".to_string(),
-        speed: PLAYER_SPEED,
-    };
+    let mut player = Player::new();
 
     let ortho_width = VIEW_PORT_WIDTH as f32 / 130.0;
     let ortho_height = VIEW_PORT_HEIGHT as f32 / 130.0;
@@ -339,7 +318,7 @@ fn main() {
         first_mouse: true,
         mouse_x: VIEW_PORT_WIDTH as f32 / 2.0,
         mouse_y: VIEW_PORT_HEIGHT as f32 / 2.0,
-        player,
+        player: Rc::new(player.into()),
         enemies: vec![],
         burn_marks: BurnMarks::new(unit_square_quad),
         viewport_width: VIEW_PORT_WIDTH as f32,
@@ -356,9 +335,7 @@ fn main() {
 
     let mut use_point_light = false;
 
-    player_model.play_clip(&idle);
-    player_model.play_clip_with_transition(&idle, Duration::from_secs(6));
-    state.player.animation_name = String::from(&idle.name);
+    state.player.borrow_mut().set_animation(&forward, 4);
 
     //
     // --------------------------------
@@ -404,30 +381,32 @@ fn main() {
 
         bulletStore.update_bullets(&mut state);
 
-        if state.player.isAlive {
+        let player = state.player.clone();
+
+        if player.borrow().is_alive {
             enemy_system.update(&mut state);
             enemy_system.chase_player(&mut state);
         }
 
-        state.game_camera.position = state.player.position + cameraFollowVec.clone();
-        let game_view = Mat4::look_at_rh(state.game_camera.position, state.player.position, state.game_camera.up);
+        state.game_camera.position = player.borrow().position + cameraFollowVec.clone();
+        let game_view = Mat4::look_at_rh(state.game_camera.position, player.borrow().position, state.game_camera.up);
 
         let (projection, camera_view) = match state.active_camera {
             CameraType::Game => (state.game_projection, game_view),
             CameraType::Floating => {
-                let view = Mat4::look_at_rh(state.floating_camera.position, state.player.position, state.floating_camera.up);
+                let view = Mat4::look_at_rh(state.floating_camera.position, player.borrow().position, state.floating_camera.up);
                 (state.floating_projection, view)
             }
             CameraType::TopDown => {
                 let view = Mat4::look_at_rh(
-                    vec3(state.player.position.x, 1.0, state.player.position.z),
-                    state.player.position,
+                    vec3(player.borrow().position.x, 1.0, player.borrow().position.z),
+                    player.borrow().position,
                     vec3(0.0, 0.0, -1.0),
                 );
                 (state.orthographic_projection, view)
             }
             CameraType::Side => {
-                let view = Mat4::look_at_rh(vec3(0.0, 0.0, -3.0), state.player.position, vec3(0.0, 1.0, 0.0));
+                let view = Mat4::look_at_rh(vec3(0.0, 0.0, -3.0), player.borrow().position, vec3(0.0, 1.0, 0.0));
                 (state.orthographic_projection, view)
             }
         };
@@ -437,9 +416,9 @@ fn main() {
         let mut dx: f32 = 0.0;
         let mut dz: f32 = 0.0;
 
-        state.player.isAlive = true;
+        player.borrow_mut().is_alive = true;
 
-        if state.player.isAlive && buffer_ready {
+        if player.borrow().is_alive && buffer_ready {
             let world_ray = get_world_ray_from_mouse(
                 state.mouse_x,
                 state.mouse_y,
@@ -455,8 +434,8 @@ fn main() {
 
             let world_point = ray_plane_intersection(state.game_camera.position, world_ray, plane_point, plane_normal).unwrap();
 
-            dx = world_point.x - state.player.position.x;
-            dz = world_point.z - state.player.position.z;
+            dx = world_point.x - player.borrow().position.x;
+            dz = world_point.z - player.borrow().position.z;
 
             aimTheta = (dx / dz).atan() + if dz < 0.0 { PI } else { 0.0 };
 
@@ -470,16 +449,16 @@ fn main() {
 
         let aimRot = Mat4::from_axis_angle(vec3(0.0, 1.0, 0.0), aimTheta);
 
-        let mut player_model_transform = Mat4::from_translation(state.player.position);
+        let mut player_model_transform = Mat4::from_translation(player.borrow().position);
         player_model_transform *= Mat4::from_scale(Vec3::splat(PLAYER_MODEL_SCALE));
         player_model_transform *= aimRot;
 
-        let muzzle_transform = get_muzzle_position(&player_model, &player_model_transform);
+        let muzzle_transform = player.borrow().get_muzzle_position(&player_model_transform);
 
-        if state.player.isAlive && state.player.isTryingToFire && (state.player.lastFireTime + FIRE_INTERVAL) < state.frame_time {
+        if player.borrow().is_alive && player.borrow().is_trying_to_fire && (player.borrow().last_fire_time + FIRE_INTERVAL) < state.frame_time {
             bulletStore.create_bullets(dx, dz, &muzzle_transform, 10); //SPREAD_AMOUNT);
 
-            state.player.lastFireTime = state.frame_time;
+            player.borrow_mut().last_fire_time = state.frame_time;
             muzzle_flash.add_flash();
         }
 
@@ -529,16 +508,16 @@ fn main() {
         playerShader.set_bool("useLight", true);
         playerShader.set_vec3("ambient", &ambientColor);
 
-        player_model.update_animation(state.delta_time);
-        player_model.render(&playerShader);
+        let move_vec = vec2(0.0, 0.0);
+
+        player.borrow_mut().update(&mut state, move_vec, aimTheta);
+
+        player.borrow().render(&playerShader);
 
         muzzle_flash.draw(&sprite_shader, &projection_view, &muzzle_transform);
 
-        if !state.player.isAlive {
-            if state.player.animation_name != String::from(&dying.name) {
-                player_model.play_clip_with_transition(&dying, Duration::from_secs(1));
-                state.player.animation_name = String::from(&dying.name);
-            }
+        if !player.borrow().is_alive {
+            player.borrow_mut().set_animation(&dying, 1);
         }
 
         wigglyShader.use_shader();
@@ -703,16 +682,24 @@ fn handle_window_event(window: &mut glfw::Window, event: glfw::WindowEvent, stat
         }
         glfw::WindowEvent::CursorPos(xpos, ypos) => mouse_handler(state, xpos, ypos),
         glfw::WindowEvent::Scroll(xoffset, ysoffset) => scroll_handler(state, xoffset, ysoffset),
-        glfw::WindowEvent::MouseButton(MouseButton::Button1, Action::Press, _) => state.player.isTryingToFire = true,
-        glfw::WindowEvent::MouseButton(MouseButton::Button1, Action::Release, _) => state.player.isTryingToFire = false,
+        glfw::WindowEvent::MouseButton(MouseButton::Button1, Action::Press, _) => {
+            state.player.borrow_mut().is_trying_to_fire = true
+        },
+        glfw::WindowEvent::MouseButton(MouseButton::Button1, Action::Release, _) => {
+            state.player.borrow_mut().is_trying_to_fire = false
+        },
         _evt => {
             // println!("WindowEvent: {:?}", _evt);
         }
     }
+
+    let player_speed = state.player.borrow().speed;
+    let mut player = state.player.borrow_mut();
+
     if direction_vec.length_squared() > 0.01 {
-        state.player.position += direction_vec.normalize() * state.player.speed * state.delta_time;
+        player.position += direction_vec.normalize() * player_speed * state.delta_time;
     }
-    state.player.player_direction = vec2(direction_vec.x, direction_vec.z);
+    player.direction = vec2(direction_vec.x, direction_vec.z);
 }
 
 fn framebuffer_size_event(_window: &mut glfw::Window, state: &mut State, width: i32, height: i32) {

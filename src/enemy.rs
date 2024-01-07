@@ -51,29 +51,30 @@ impl EnemySystem {
 
     pub fn spawn_enemy(&mut self, state: &mut State) {
         let theta = (rand_float() * 360.0).to_radians();
-        let x = state.player.position.x + theta.sin() * SPAWN_RADIUS;
-        let z = state.player.position.z + theta.cos() * SPAWN_RADIUS;
+        let x = state.player.borrow().position.x + theta.sin() * SPAWN_RADIUS;
+        let z = state.player.borrow().position.z + theta.cos() * SPAWN_RADIUS;
         state.enemies.push(Enemy::new(vec3(x, self.monster_y, z), vec3(0.0, 0.0, 1.0)));
     }
 
     pub fn chase_player(&self, state: &mut State) {
-        let playerCollisionPosition = vec3(state.player.position.x, MONSTER_Y, state.player.position.z);
+        let mut player = state.player.borrow_mut();
+        let playerCollisionPosition = vec3(player.position.x, MONSTER_Y, player.position.z);
 
         for enemy in state.enemies.iter_mut() {
-            let mut dir = state.player.position - enemy.position;
+            let mut dir = player.position - enemy.position;
             dir.y = 0.0;
             enemy.dir = dir.normalize_or_zero();
             enemy.position += enemy.dir * state.delta_time * MONSTER_SPEED;
 
-            if state.player.isAlive {
+            if player.is_alive {
                 let p1 = enemy.position - enemy.dir * (ENEMY_COLLIDER.height / 2.0);
                 let p2 = enemy.position + enemy.dir * (ENEMY_COLLIDER.height / 2.0);
                 let dist = distanceBetweenPointAndLineSegment(&playerCollisionPosition, &p1, &p2);
 
                 if dist <= (PLAYER_COLLISION_RADIUS + ENEMY_COLLIDER.radius) {
                     // println!("GOTTEM!");
-                    state.player.isAlive = false;
-                    state.player.player_direction = vec2(0.0, 0.0);
+                    player.is_alive = false;
+                    player.direction = vec2(0.0, 0.0);
                 }
             }
         }

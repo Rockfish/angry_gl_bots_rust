@@ -37,23 +37,21 @@ fn main() {
 }
 
 fn calculate_weights(aim_vec: Vec2, move_vec: Vec2, aim_theta: f32) -> Weights {
-    // let move_vec = move_vec.normalize_or_zero();
-
-    let d = aim_vec.dot(move_vec);
 
     let move_theta = (move_vec.x / move_vec.y).atan() + if move_vec.y < 0.0 { PI } else { 0.0 };
     let theta_delta = move_theta - aim_theta;
     let anim_move = vec2(theta_delta.sin(), theta_delta.cos());
+    let moving = move_vec.length_squared() > 0.0001;
 
     let weights = Weights {
-        idle: 0.0,
+        idle: if moving { 0.0 } else { 1.0 },
         forward: clamp0(anim_move.y),
         back: clamp0(-anim_move.y),
         right: clamp0(-anim_move.x),
         left: clamp0(anim_move.x),
     };
 
-    println!("aim_vec: {:?}   move_vec: {:?}   dot: {:?}  move_theta: {:?}  anim_move: {:?}", aim_vec, move_vec, d, move_theta, anim_move);
+    println!("aim_vec: {:?}   move_vec: {:?}  move_theta: {:?}  anim_move: {:?}", aim_vec, move_vec, move_theta, anim_move);
     println!("weights: {:?}", weights);
     println!();
 

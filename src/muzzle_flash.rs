@@ -90,22 +90,4 @@ impl MuzzleFlash {
     }
 }
 
-pub fn get_muzzle_position(player_model: &Model, player_model_transform: &Mat4) -> Mat4 {
-    // Position in original model of gun muzzle
-    // let point_vec = vec3(197.0, 76.143, -3.054);
-    let point_vec = vec3(191.04, 79.231, -3.4651); // center of muzzle
 
-    let meshes = player_model.meshes.borrow();
-    let animator = player_model.animator.borrow();
-
-    let gun_mesh = meshes.iter().find(|m| m.name.as_str() == "Gun").unwrap();
-    let final_node_matrices = animator.final_node_matrices.borrow();
-
-    let gun_transform = final_node_matrices.get(gun_mesh.id as usize).unwrap();
-
-    let muzzle = *gun_transform * Mat4::from_translation(point_vec);
-
-    let muzzle_transform = *player_model_transform * muzzle;
-
-    muzzle_transform
-}
