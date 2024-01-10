@@ -344,7 +344,7 @@ impl BulletStore {
                                 &self.all_bullet_directions[bullet_index as usize],
                                 enemy,
                             ) {
-                                println!("killed enemy!");
+                                // println!("killed enemy!");
                                 enemy.is_alive = false;
                                 break;
                             }

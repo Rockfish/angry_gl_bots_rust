@@ -1,3 +1,5 @@
+// #![feature(const_trait_impl)]
+// #![feature(effects)]
 // #![allow(non_upper_case_globals)]
 #![allow(dead_code)]
 #![allow(non_snake_case)]
@@ -31,7 +33,7 @@ use crate::framebuffers::{create_depth_map_fbo, create_emission_fbo, create_hori
 use crate::muzzle_flash::{MuzzleFlash};
 use crate::player::Player;
 use crate::quads::{create_moreObnoxiousQuadVAO, create_unitSquareVAO};
-use glam::{vec2, vec3, vec4, Mat4, Vec3, Vec4Swizzles};
+use glam::{vec2, vec3, vec4, Mat4, Vec3, Vec4Swizzles, Vec2};
 use glfw::JoystickId::Joystick1;
 use glfw::{Action, Context, Key, MouseButton};
 use log::error;
@@ -41,10 +43,12 @@ use small_gl_core::gl::{GLsizei, GLuint};
 use small_gl_core::math::{get_world_ray_from_mouse, ray_plane_intersection};
 use small_gl_core::model::ModelBuilder;
 use small_gl_core::shader::Shader;
-use small_gl_core::texture::{Texture, TextureConfig, TextureFilter, TextureType, TextureWrap};
+use small_gl_core::texture::{Texture, TextureConfig, TextureWrap};
 use std::f32::consts::PI;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::thread::sleep;
+use small_gl_core::hash_map::HashSet;
 
 const PARALLELISM: i32 = 4;
 
@@ -53,28 +57,6 @@ const VIEW_PORT_WIDTH: i32 = 1500;
 const VIEW_PORT_HEIGHT: i32 = 1000;
 // const VIEW_PORT_WIDTH: i32 = 800;
 // const VIEW_PORT_HEIGHT: i32 = 500;
-//
-// // Texture units
-// const texUnit_playerDiffuse: u32 = 0;
-// const texUnit_gunDiffuse: u32 = 1;
-// const texUnit_floorDiffuse: u32 = 2;
-// const texUnit_wigglyBoi: u32 = 3;
-// const texUnit_bullet: u32 = 4;
-// const texUnit_floorNormal: u32 = 5;
-// const texUnit_playerNormal: u32 = 6;
-// const texUnit_gunNormal: u32 = 7;
-// const texUnit_shadowMap: u32 = 8;
-// const texUnit_emissionFBO: u32 = 9;
-// const texUnit_playerEmission: u32 = 10;
-// const texUnit_gunEmission: i32 = 11;
-// const texUnit_scene: i32 = 12;
-// const texUnit_horzBlur: i32 = 13;
-// const texUnit_vertBlur: i32 = 14;
-// const texUnit_impactSpriteSheet: u32 = 15;
-// const texUnit_muzzleFlashSpriteSheet: u32 = 16;
-// const texUnit_floorSpec: u32 = 18;
-// const texUnit_playerSpec: u32 = 19;
-// const texUnit_gunSpec: u32 = 20;
 
 // Player
 const FIRE_INTERVAL: f32 = 0.1; // seconds
@@ -110,7 +92,10 @@ enum CameraType {
 
 struct State {
     run: bool,
+    viewport_width: f32,
+    viewport_height: f32,
     window_scale: (f32, f32),
+    key_presses: HashSet<Key>,
     game_camera: Camera,
     floating_camera: Camera,
     ortho_camera: Camera,
@@ -126,8 +111,6 @@ struct State {
     player: Rc<RefCell<Player>>,
     enemies: Vec<Enemy>,
     burn_marks: BurnMarks,
-    viewport_width: f32,
-    viewport_height: f32,
 }
 
 fn error_callback(err: glfw::Error, description: String) {
@@ -139,6 +122,7 @@ fn joystick_callback(jid: glfw::JoystickId, event: glfw::JoystickEvent) {
 }
 
 fn main() {
+
     let mut glfw = glfw::init(error_callback).unwrap();
 
     glfw.window_hint(glfw::WindowHint::ContextVersion(3, 3));
@@ -305,7 +289,10 @@ fn main() {
 
     let mut state = State {
         run: true,
+        viewport_width: VIEW_PORT_WIDTH as f32,
+        viewport_height: VIEW_PORT_HEIGHT as f32,
         window_scale: window.get_content_scale(),
+        key_presses: HashSet::new(),
         game_camera,
         floating_camera,
         ortho_camera,
@@ -321,8 +308,6 @@ fn main() {
         player: Rc::new(player.into()),
         enemies: vec![],
         burn_marks: BurnMarks::new(unit_square_quad),
-        viewport_width: VIEW_PORT_WIDTH as f32,
-        viewport_height: VIEW_PORT_HEIGHT as f32,
     };
 
     let mut aimTheta = 0.0f32;
@@ -416,7 +401,7 @@ fn main() {
         let mut dx: f32 = 0.0;
         let mut dz: f32 = 0.0;
 
-        player.borrow_mut().is_alive = true;
+        // player.borrow_mut().is_alive = true;
 
         if player.borrow().is_alive && buffer_ready {
             let world_ray = get_world_ray_from_mouse(
@@ -508,17 +493,15 @@ fn main() {
         playerShader.set_bool("useLight", true);
         playerShader.set_vec3("ambient", &ambientColor);
 
-        let move_vec = vec2(0.0, 0.0);
+        player.borrow_mut().update(&mut state, aimTheta);
 
-        player.borrow_mut().update(&mut state, move_vec, aimTheta);
-
-        player.borrow().render(&playerShader);
+        player.borrow_mut().render(&playerShader);
 
         muzzle_flash.draw(&sprite_shader, &projection_view, &muzzle_transform);
 
-        if !player.borrow().is_alive {
-            player.borrow_mut().set_animation(&dying, 1);
-        }
+        // if !player.borrow().is_alive {
+        //     player.borrow_mut().set_animation(&dying, 1);
+        // }
 
         wigglyShader.use_shader();
         wigglyShader.set_mat4("projectionView", &projection_view);
@@ -620,7 +603,7 @@ fn main() {
 // GLFW maps callbacks to events.
 //
 fn handle_window_event(window: &mut glfw::Window, event: glfw::WindowEvent, state: &mut State) {
-    let mut direction_vec = Vec3::splat(0.0);
+    // println!("WindowEvent: {:?}", &event);
     match event {
         glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => window.set_should_close(true),
         glfw::WindowEvent::FramebufferSize(width, height) => {
@@ -646,30 +629,30 @@ fn handle_window_event(window: &mut glfw::Window, event: glfw::WindowEvent, stat
             let height = state.viewport_height as i32;
             set_view_port(state, width, height)
         }
-        glfw::WindowEvent::Key(Key::W, _, _, modifier) => {
+        glfw::WindowEvent::Key(Key::W, _, action, modifier) => {
             if modifier.is_empty() {
-                direction_vec += vec3(1.0, 0.0, 0.0);
+                handle_key_press(state, action, Key::W);
             } else {
                 state.floating_camera.process_keyboard(CameraMovement::Forward, state.delta_time);
             }
         }
-        glfw::WindowEvent::Key(Key::S, _, _, modifier) => {
+        glfw::WindowEvent::Key(Key::S, _, action, modifier) => {
             if modifier.is_empty() {
-                direction_vec += vec3(-1.0, 0.0, 0.0);
+                handle_key_press(state, action, Key::S);
             } else {
                 state.floating_camera.process_keyboard(CameraMovement::Backward, state.delta_time);
             }
         }
-        glfw::WindowEvent::Key(Key::A, _, _, modifier) => {
+        glfw::WindowEvent::Key(Key::A, _, action, modifier) => {
             if modifier.is_empty() {
-                direction_vec += vec3(0.0, 0.0, -1.0);
+                handle_key_press(state, action, Key::A);
             } else {
                 state.floating_camera.process_keyboard(CameraMovement::Left, state.delta_time);
             }
         }
-        glfw::WindowEvent::Key(Key::D, _, _, modifier) => {
+        glfw::WindowEvent::Key(Key::D, _, action, modifier) => {
             if modifier.is_empty() {
-                direction_vec += vec3(0.0, 0.0, 1.0);
+                handle_key_press(state, action, Key::D);
             } else {
                 state.floating_camera.process_keyboard(CameraMovement::Right, state.delta_time);
             }
@@ -693,13 +676,36 @@ fn handle_window_event(window: &mut glfw::Window, event: glfw::WindowEvent, stat
         }
     }
 
-    let player_speed = state.player.borrow().speed;
-    let mut player = state.player.borrow_mut();
+    if state.player.borrow().is_alive {
+        let player_speed = state.player.borrow().speed;
+        let mut player = state.player.borrow_mut();
 
-    if direction_vec.length_squared() > 0.01 {
-        player.position += direction_vec.normalize() * player_speed * state.delta_time;
+        let mut direction_vec = Vec3::splat(0.0);
+        for key in &state.key_presses {
+            match key {
+                Key::A => direction_vec += vec3(0.0, 0.0, -1.0),
+                Key::D => direction_vec += vec3(0.0, 0.0, 1.0),
+                Key::S => direction_vec += vec3(-1.0, 0.0, 0.0),
+                Key::W => direction_vec += vec3(1.0, 0.0, 0.0),
+                _ => {},
+            }
+        }
+
+        if direction_vec.length_squared() > 0.01 {
+            player.position += direction_vec.normalize() * player_speed * state.delta_time;
+        }
+        player.direction = vec2(direction_vec.x, direction_vec.z);
     }
-    player.direction = vec2(direction_vec.x, direction_vec.z);
+    // println!("key presses: {:?}", &state.key_presses);
+    // println!("direction: {:?}  player.direction: {:?}  delta_time: {:?}", direction_vec, player.direction, state.frame_time);
+}
+
+fn handle_key_press(state: &mut State, action: Action, key: Key) {
+    match action {
+        Action::Release => state.key_presses.remove(&key),
+        Action::Press => state.key_presses.insert(key),
+        _ => false,
+    };
 }
 
 fn framebuffer_size_event(_window: &mut glfw::Window, state: &mut State, width: i32, height: i32) {

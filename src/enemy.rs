@@ -74,6 +74,7 @@ impl EnemySystem {
                 if dist <= (PLAYER_COLLISION_RADIUS + ENEMY_COLLIDER.radius) {
                     // println!("GOTTEM!");
                     player.is_alive = false;
+                    player.set_player_death_time(state.frame_time);
                     player.direction = vec2(0.0, 0.0);
                 }
             }

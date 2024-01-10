@@ -54,6 +54,7 @@ dependencies = [
  "image",
  "itertools",
  "log",
+ "once_cell",
  "ordered-float",
  "small_gl_core",
 ]
