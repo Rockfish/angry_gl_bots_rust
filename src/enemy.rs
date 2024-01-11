@@ -1,12 +1,11 @@
 use crate::capsule::Capsule;
-use crate::geom::distanceBetweenPointAndLineSegment;
+use crate::geom::distance_between_point_and_line_segment;
 use crate::{State, MONSTER_SPEED, MONSTER_Y, PLAYER_COLLISION_RADIUS};
 use glam::{vec2, vec3, Mat4, Vec3};
 use small_gl_core::model::Model;
 use small_gl_core::shader::Shader;
 use small_gl_core::utils::rand_float;
 use std::f32::consts::PI;
-use std::rc::Rc;
 
 pub const ENEMY_COLLIDER: Capsule = Capsule { height: 0.4, radius: 0.08 };
 
@@ -58,7 +57,7 @@ impl EnemySystem {
 
     pub fn chase_player(&self, state: &mut State) {
         let mut player = state.player.borrow_mut();
-        let playerCollisionPosition = vec3(player.position.x, MONSTER_Y, player.position.z);
+        let player_collision_position = vec3(player.position.x, MONSTER_Y, player.position.z);
 
         for enemy in state.enemies.iter_mut() {
             let mut dir = player.position - enemy.position;
@@ -69,7 +68,7 @@ impl EnemySystem {
             if player.is_alive {
                 let p1 = enemy.position - enemy.dir * (ENEMY_COLLIDER.height / 2.0);
                 let p2 = enemy.position + enemy.dir * (ENEMY_COLLIDER.height / 2.0);
-                let dist = distanceBetweenPointAndLineSegment(&playerCollisionPosition, &p1, &p2);
+                let dist = distance_between_point_and_line_segment(&player_collision_position, &p1, &p2);
 
                 if dist <= (PLAYER_COLLISION_RADIUS + ENEMY_COLLIDER.radius) {
                     // println!("GOTTEM!");
@@ -88,18 +87,18 @@ impl EnemySystem {
 
         // TODO optimise (multithreaded, instancing, SOA, etc..)
         for e in state.enemies.iter_mut() {
-            let monsterTheta = (e.dir.x / e.dir.z).atan() + (if e.dir.z < 0.0 { 0.0 } else { PI });
+            let monster_theta = (e.dir.x / e.dir.z).atan() + (if e.dir.z < 0.0 { 0.0 } else { PI });
 
             let mut model_transform = Mat4::from_translation(e.position);
 
             model_transform *= Mat4::from_scale(Vec3::splat(0.01));
-            model_transform *= Mat4::from_axis_angle(vec3(0.0, 1.0, 0.0), monsterTheta);
+            model_transform *= Mat4::from_axis_angle(vec3(0.0, 1.0, 0.0), monster_theta);
             model_transform *= Mat4::from_axis_angle(vec3(0.0, 0.0, 1.0), PI);
             model_transform *= Mat4::from_axis_angle(vec3(1.0, 0.0, 0.0), 90.0f32.to_radians());
 
-            let mut rot_only = Mat4::from_axis_angle(vec3(0.0, 1.0, 0.0), monsterTheta);
-            rot_only = Mat4::from_axis_angle(vec3(0.0, 0.0, 1.0), PI);
-            rot_only = Mat4::from_axis_angle(vec3(1.0, 0.0, 0.0), 90.0f32.to_radians());
+            // let mut rot_only = Mat4::from_axis_angle(vec3(0.0, 1.0, 0.0), monster_theta);
+            // rot_only = Mat4::from_axis_angle(vec3(0.0, 0.0, 1.0), PI);
+            let rot_only = Mat4::from_axis_angle(vec3(1.0, 0.0, 0.0), 90.0f32.to_radians());
 
             shader.set_mat4("aimRot", &rot_only);
             shader.set_mat4("model", &model_transform);

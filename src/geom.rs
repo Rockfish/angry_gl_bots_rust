@@ -1,6 +1,6 @@
 use glam::{mat3, Vec3};
 
-pub fn distanceBetweenPointAndLineSegment(point: &Vec3, a: &Vec3, b: &Vec3) -> f32 {
+pub fn distance_between_point_and_line_segment(point: &Vec3, a: &Vec3, b: &Vec3) -> f32 {
     let ab = *b - *a;
     let ap = *point - *a;
     if ap.dot(ab) <= 0.0 {
@@ -13,27 +13,27 @@ pub fn distanceBetweenPointAndLineSegment(point: &Vec3, a: &Vec3, b: &Vec3) -> f
     return ab.cross(ap).length() / ab.length();
 }
 
-pub fn distanceBetweenLineSegments(a0: &Vec3, a1: &Vec3, b0: &Vec3, b1: &Vec3) -> f32 {
-    let EPS = 0.001f32;
+pub fn distance_between_line_segments(a0: &Vec3, a1: &Vec3, b0: &Vec3, b1: &Vec3) -> f32 {
+    let eps = 0.001f32;
 
-    let A = *a1 - *a0;
-    let B = *b1 - *b0;
-    let magA = A.length();
-    let magB = B.length();
+    let a = *a1 - *a0;
+    let b = *b1 - *b0;
+    let mag_a = a.length();
+    let mag_b = b.length();
 
-    let _A = A / magA;
-    let _B = B / magB;
+    let a = a / mag_a;
+    let b = b / mag_b;
 
-    let cross = _A.cross(_B);
+    let cross = a.cross(b);
     let cl = cross.length();
     let denom = cl * cl;
 
     // If lines are parallel (denom=0) test if lines overlap.
     // If they don't overlap then there is a closest point solution.
     // If they do overlap, there are infinite closest positions, but there is a closest distance
-    if denom < EPS {
-        let d0 = _A.dot(*b0 - *a0);
-        let d1 = _A.dot(*b1 - *a0);
+    if denom < eps {
+        let d0 = a.dot(*b0 - *a0);
+        let d1 = a.dot(*b1 - *a0);
 
         // Is segment B before A?
         if d0 <= 0.0 && 0.0 >= d1 {
@@ -41,7 +41,7 @@ pub fn distanceBetweenLineSegments(a0: &Vec3, a1: &Vec3, b0: &Vec3, b1: &Vec3) -
                 return (*a0 - *b0).length();
             }
             return (*a0 - *b1).length();
-        } else if d0 >= magA && magA <= d1 {
+        } else if d0 >= mag_a && mag_a <= d1 {
             if d0.abs() < d1.abs() {
                 return (*a1 - *b0).length();
             }
@@ -49,56 +49,56 @@ pub fn distanceBetweenLineSegments(a0: &Vec3, a1: &Vec3, b0: &Vec3, b1: &Vec3) -
         }
 
         // Segments overlap, return distance between parallel segments
-        return (((d0 * _A) + *a0) - *b0).length();
+        return (((d0 * a) + *a0) - *b0).length();
     }
 
     // Lines criss-cross: Calculate the projected closest points
     let t = *b0 - *a0;
-    let detA = (mat3(t, _B, cross)).determinant();
-    let detB = (mat3(t, _A, cross)).determinant();
+    let det_a = (mat3(t, b, cross)).determinant();
+    let det_b = (mat3(t, a, cross)).determinant();
 
-    let t0 = detA / denom;
-    let t1 = detB / denom;
+    let t0 = det_a / denom;
+    let t1 = det_b / denom;
 
-    let mut pA = *a0 + (_A * t0); // Projected closest point on segment A
-    let mut pB = *b0 + (_B * t1); // Projected closest point on segment B
+    let mut p_a = *a0 + (a * t0); // Projected closest point on segment A
+    let mut p_b = *b0 + (b * t1); // Projected closest point on segment B
 
     // Clamp projections
     if t0 < 0.0 {
-        pA = *a0;
-    } else if t0 > magA {
-        pA = *a1;
+        p_a = *a0;
+    } else if t0 > mag_a {
+        p_a = *a1;
     }
 
     if t1 < 0.0 {
-        pB = *b0;
-    } else if t1 > magB {
-        pB = *b1;
+        p_b = *b0;
+    } else if t1 > mag_b {
+        p_b = *b1;
     }
 
     // Clamp projection A
-    if t0 < 0.0 || t0 > magA {
-        let mut dot = _B.dot(pA - *b0);
+    if t0 < 0.0 || t0 > mag_a {
+        let mut dot = b.dot(p_a - *b0);
         if dot < 0.0 {
             dot = 0.0;
-        } else if dot > magB {
-            dot = magB;
+        } else if dot > mag_b {
+            dot = mag_b;
         }
-        pB = *b0 + (_B * dot);
+        p_b = *b0 + (b * dot);
     }
 
     // Clamp projection B
-    if t1 < 0.0 || t1 > magB {
-        let mut dot = _A.dot(pB - *a0);
+    if t1 < 0.0 || t1 > mag_b {
+        let mut dot = a.dot(p_b - *a0);
         if dot < 0.0 {
             dot = 0.0;
-        } else if dot > magA {
-            dot = magA;
+        } else if dot > mag_a {
+            dot = mag_a;
         }
-        pA = *a0 + (_A * dot);
+        p_a = *a0 + (a * dot);
     }
 
-    return (pA - pB).length();
+    return (p_a - p_b).length();
 }
 
 /// See https://github.com/icaven/glm/blob/master/glm/gtx/vector_angle.inl

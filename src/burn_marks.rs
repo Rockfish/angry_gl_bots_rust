@@ -3,7 +3,7 @@ use small_gl_core::gl;
 use small_gl_core::gl::GLuint;
 use small_gl_core::shader::Shader;
 use small_gl_core::texture::{bind_texture, Texture, TextureConfig, TextureWrap};
-use std::rc::Rc;
+
 
 const BURN_MARK_TIME: f32 = 5.0;
 
@@ -13,18 +13,18 @@ pub struct BurnMark {
 }
 
 pub struct BurnMarks {
-    unitSquareVAO: i32,
+    unit_square_vao: i32,
     mark_texture: Texture,
     marks: Vec<BurnMark>,
 }
 
 impl BurnMarks {
-    pub fn new(unitSquareVAO: i32) -> Self {
+    pub fn new(unit_square_vao: i32) -> Self {
         let texture_config = TextureConfig::new().set_wrap(TextureWrap::Repeat);
         let mark_texture = Texture::new("angrygl_assets/bullet/burn_mark.png", &texture_config).unwrap();
 
         BurnMarks {
-            unitSquareVAO,
+            unit_square_vao,
             mark_texture,
             marks: vec![],
         }
@@ -37,13 +37,13 @@ impl BurnMarks {
         });
     }
 
-    pub fn draw_marks(&mut self, shader: &Shader, PV: &Mat4, delta_time: f32) {
+    pub fn draw_marks(&mut self, shader: &Shader, projection_view: &Mat4, delta_time: f32) {
         if self.marks.is_empty() {
             return;
         }
 
         shader.use_shader();
-        shader.set_mat4("PV", &PV);
+        shader.set_mat4("PV", &projection_view);
 
         bind_texture(shader, 0, "texture_diffuse", &self.mark_texture);
         bind_texture(shader, 1, "texture_normal", &self.mark_texture);
@@ -52,7 +52,7 @@ impl BurnMarks {
             gl::DepthMask(gl::FALSE);
             gl::Enable(gl::BLEND);
             gl::Disable(gl::CULL_FACE);
-            gl::BindVertexArray(self.unitSquareVAO as GLuint);
+            gl::BindVertexArray(self.unit_square_vao as GLuint);
         }
 
         for mark in self.marks.iter_mut() {

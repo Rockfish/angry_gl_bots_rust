@@ -74,7 +74,7 @@ impl PlayerAnimations {
 #[derive(Debug)]
 pub struct AnimationWeights {
     // Previous animation weights
-    lastAnimTime: f32,
+    last_anim_time: f32,
     prev_idle_weight: f32,
     prev_right_weight: f32,
     prev_forward_weight: f32,
@@ -85,7 +85,7 @@ pub struct AnimationWeights {
 impl Default for AnimationWeights {
     fn default() -> Self {
         AnimationWeights {
-            lastAnimTime: 0.0,
+            last_anim_time: 0.0,
             prev_idle_weight: 0.0,
             prev_right_weight: 0.0,
             prev_forward_weight: 0.0,
@@ -189,8 +189,8 @@ impl Player {
         let theta_delta = move_theta - aim_theta;
         let anim_move = vec2(theta_delta.sin(), theta_delta.cos());
 
-        let anim_delta_time = frame_time - self.anim_weights.lastAnimTime;
-        self.anim_weights.lastAnimTime = frame_time;
+        let anim_delta_time = frame_time - self.anim_weights.last_anim_time;
+        self.anim_weights.last_anim_time = frame_time;
 
         let is_dead = self.death_time >= 0.0;
 
