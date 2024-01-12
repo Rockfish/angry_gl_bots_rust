@@ -15,8 +15,8 @@ log = "0.4.20"
 small_gl_core = { path = "../small_gl_core" }
 itertools = "0.12.0"
 ordered-float = "4.2.0"
+once_cell = "1.19.0"
 
 [[example]]
 name = "animation_weights"
 path = "playground/animation_weights.rs"
-

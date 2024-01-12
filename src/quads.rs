@@ -31,14 +31,14 @@ const OBNOXIOUS_QUAD: [f32; 30] = [
     0.5, 1.0, -0.9, 0.0, 1.0,
 ];
 
-pub fn create_obnoxiousQuadVAO() -> GLuint {
-    let mut obnoxiousQuadVAO: GLuint = 0;
-    let mut obnoxiousQuadVBO: GLuint = 0;
+pub fn create_obnoxious_quad_vao() -> GLuint {
+    let mut obnoxious_quad_vao: GLuint = 0;
+    let mut obnoxious_quad_vbo: GLuint = 0;
     unsafe {
-        gl::GenVertexArrays(1, &mut obnoxiousQuadVAO);
-        gl::GenBuffers(1, &mut obnoxiousQuadVBO);
-        gl::BindVertexArray(obnoxiousQuadVAO);
-        gl::BindBuffer(gl::ARRAY_BUFFER, obnoxiousQuadVBO);
+        gl::GenVertexArrays(1, &mut obnoxious_quad_vao);
+        gl::GenBuffers(1, &mut obnoxious_quad_vbo);
+        gl::BindVertexArray(obnoxious_quad_vao);
+        gl::BindBuffer(gl::ARRAY_BUFFER, obnoxious_quad_vbo);
         gl::BufferData(
             gl::ARRAY_BUFFER,
             (OBNOXIOUS_QUAD.len() * SIZE_OF_FLOAT) as GLsizeiptr,
@@ -50,17 +50,17 @@ pub fn create_obnoxiousQuadVAO() -> GLuint {
         gl::VertexAttribPointer(1, 2, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, (3 * SIZE_OF_FLOAT) as *const GLvoid);
         gl::EnableVertexAttribArray(1);
     }
-    obnoxiousQuadVAO
+    obnoxious_quad_vao
 }
 
-pub fn create_unitSquareVAO() -> GLuint {
-    let mut unitSquareVAO: GLuint = 0;
-    let mut unitSquareVBO: GLuint = 0;
+pub fn create_unit_square_vao() -> GLuint {
+    let mut unit_square_vao: GLuint = 0;
+    let mut unit_square_vbo: GLuint = 0;
     unsafe {
-        gl::GenVertexArrays(1, &mut unitSquareVAO);
-        gl::GenBuffers(1, &mut unitSquareVBO);
-        gl::BindVertexArray(unitSquareVAO);
-        gl::BindBuffer(gl::ARRAY_BUFFER, unitSquareVBO);
+        gl::GenVertexArrays(1, &mut unit_square_vao);
+        gl::GenBuffers(1, &mut unit_square_vbo);
+        gl::BindVertexArray(unit_square_vao);
+        gl::BindBuffer(gl::ARRAY_BUFFER, unit_square_vbo);
         gl::BufferData(
             gl::ARRAY_BUFFER,
             (UNIT_SQUARE.len() * SIZE_OF_FLOAT) as GLsizeiptr,
@@ -72,17 +72,17 @@ pub fn create_unitSquareVAO() -> GLuint {
         gl::VertexAttribPointer(1, 2, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, (3 * SIZE_OF_FLOAT) as *const GLvoid);
         gl::EnableVertexAttribArray(1);
     }
-    unitSquareVAO
+    unit_square_vao
 }
 
-pub fn create_moreObnoxiousQuadVAO() -> GLuint {
-    let mut moreObnoxiousQuadVAO: GLuint = 0;
-    let mut moreObnoxiousQuadVBO: GLuint = 0;
+pub fn create_more_obnoxious_quad_vao() -> GLuint {
+    let mut more_obnoxious_quad_vao: GLuint = 0;
+    let mut more_obnoxious_quad_vbo: GLuint = 0;
     unsafe {
-        gl::GenVertexArrays(1, &mut moreObnoxiousQuadVAO);
-        gl::GenBuffers(1, &mut moreObnoxiousQuadVBO);
-        gl::BindVertexArray(moreObnoxiousQuadVAO);
-        gl::BindBuffer(gl::ARRAY_BUFFER, moreObnoxiousQuadVBO);
+        gl::GenVertexArrays(1, &mut more_obnoxious_quad_vao);
+        gl::GenBuffers(1, &mut more_obnoxious_quad_vbo);
+        gl::BindVertexArray(more_obnoxious_quad_vao);
+        gl::BindBuffer(gl::ARRAY_BUFFER, more_obnoxious_quad_vbo);
         gl::BufferData(
             gl::ARRAY_BUFFER,
             (MORE_OBNOXIOUS_QUAD.len() * SIZE_OF_FLOAT) as GLsizeiptr,
@@ -94,5 +94,5 @@ pub fn create_moreObnoxiousQuadVAO() -> GLuint {
         gl::VertexAttribPointer(1, 2, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, (3 * SIZE_OF_FLOAT) as *const GLvoid);
         gl::EnableVertexAttribArray(1);
     }
-    moreObnoxiousQuadVAO
+    more_obnoxious_quad_vao
 }
