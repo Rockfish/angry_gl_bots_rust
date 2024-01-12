@@ -29,7 +29,7 @@ use crate::bullets::BulletStore;
 use crate::burn_marks::BurnMarks;
 use crate::enemy::{Enemy, EnemySystem};
 use crate::floor::Floor;
-use crate::framebuffers::{create_depth_map_fbo, create_emission_fbo, create_horizontal_blur_fbo, create_scene_fbo, create_vertical_blur_fbo};
+use crate::framebuffers::{create_depth_map_fbo, create_emission_fbo, create_horizontal_blur_fbo, create_scene_fbo, create_vertical_blur_fbo, SHADOW_HEIGHT, SHADOW_WIDTH};
 use crate::muzzle_flash::MuzzleFlash;
 use crate::player::Player;
 use crate::quads::{create_more_obnoxious_quad_vao, create_unit_square_vao};
@@ -158,22 +158,6 @@ fn main() {
     let muzzle_point_light_color = vec3(1.0, 0.2, 0.0);
 
     println!("Loading assets");
-    /*
-    angrygl/main.cc
-        Shader blurShader = Shader::create("angrygl/basicer_shader.vert", "angrygl/blur_shader.frag");
-        Shader basicerShader = Shader::create("angrygl/basicer_shader.vert", "angrygl/basicer_shader.frag");
-        Shader sceneDrawShader = Shader::create("angrygl/basicer_shader.vert", "angrygl/texture_merge_shader.frag");
-        Shader simpleDepthShader = Shader::create("angrygl/depth_shader.vert", "angrygl/depth_shader.frag");
-        Shader wigglyShader = Shader::create("angrygl/wiggly_shader.vert", "angrygl/player_shader.frag");
-        Shader playerShader = Shader::create("angrygl/player_shader.vert", "angrygl/player_shader.frag");
-        Shader instancedTextureShader = Shader::create("angrygl/instanced_texture_shader.vert", "angrygl/basic_texture_shader.frag");
-        Shader nodeShader = Shader::create("angrygl/redshader.vert", "angrygl/redshader.frag");
-        Shader spriteShader = Shader::create("angrygl/geom_shader2.vert", "angrygl/sprite_shader.frag");
-        Shader textureShader = Shader::create("angrygl/geom_shader.vert", "angrygl/texture_shader.frag");
-
-        // floor!
-        Shader basicTextureShader = Shader::create("angrygl/basic_texture_shader.vert", "angrygl/floor_shader.frag");
-     */
 
     // for debug
     let _basicer_shader = Shader::new("shaders/basicer_shader.vert", "shaders/basicer_shader.frag").unwrap();
@@ -206,19 +190,12 @@ fn main() {
 
     let enemy_model = ModelBuilder::new("enemy", "assets/Models/Eeldog/EelDog.FBX").build().unwrap();
 
-    // let mut texture_cache = TextureCache::new();
-    // let texture_config = TextureConfig::new().set_wrap(TextureWrap::Repeat);
-
-    // let tex_unit_emission_fbo = Texture::new("", &texture_config);
-    // let tex_unit_vert_blur = Texture::new("", &texture_config);
-    // let tex_unit_horz_blur = Texture::new("", &texture_config);
-    // let tex_unit_scene = Texture::new("", &texture_config);
 
     let floor = Floor::new();
 
     // Framebuffers
 
-    let _depth_map_fbo = create_depth_map_fbo();
+    let depth_map_fbo = create_depth_map_fbo();
     let emissions_fbo = create_emission_fbo(VIEW_PORT_WIDTH, VIEW_PORT_HEIGHT);
     let scene_fbo = create_scene_fbo(VIEW_PORT_WIDTH, VIEW_PORT_HEIGHT);
     let horizontal_blur_fbo = create_horizontal_blur_fbo(VIEW_PORT_WIDTH, VIEW_PORT_HEIGHT);
@@ -302,13 +279,10 @@ fn main() {
 
     let mut aim_theta = 0.0f32;
 
-    // let mut muzzleFlashSpritesAge: Vec<f32> = vec![];
-
     let mut enemy_system = EnemySystem::new(MONSTER_Y);
     let mut muzzle_flash = MuzzleFlash::new(unit_square_quad);
     let mut bullet_store = BulletStore::new(unit_square_quad);
 
-    // let mut use_point_light = false;
 
     let player = state.player.clone();
     state.player.borrow_mut().set_animation(&Rc::from("forward"), 4);
@@ -320,7 +294,6 @@ fn main() {
     println!("Assets loaded. Starting loop.");
 
     let mut buffer_ready = false;
-
 
     while !window.should_close() {
         // sleep(Duration::from_millis(500));
@@ -343,18 +316,14 @@ fn main() {
             println!("axes: {:?}", axes)
         }
 
-        unsafe {
-            gl::ActiveTexture(gl::TEXTURE0);
-            // gl::ActiveTexture(gl::TEXTURE0 + scene_fbo.texture_id);
-            // gl::BindTexture(gl::TEXTURE_2D, scene_fbo.texture_id as GLuint);
-            // gl::BindFramebuffer(gl::FRAMEBUFFER, scene_fbo.framebuffer_id);
-        }
-
-        // --- muzzle flash
+        // unsafe {
+        //     gl::ActiveTexture(gl::TEXTURE0);
+        //     // gl::ActiveTexture(gl::TEXTURE0 + scene_fbo.texture_id);
+        //     // gl::BindTexture(gl::TEXTURE_2D, scene_fbo.texture_id as GLuint);
+        //     // gl::BindFramebuffer(gl::FRAMEBUFFER, scene_fbo.framebuffer_id);
+        // }
 
         muzzle_flash.update(state.delta_time);
-
-        // --- bullet sprites
 
         bullet_store.update_bullets(&mut state);
 
@@ -429,13 +398,12 @@ fn main() {
         let muzzle_transform = player.borrow().get_muzzle_position(&player_transform);
 
         if player.borrow().is_alive && player.borrow().is_trying_to_fire && (player.borrow().last_fire_time + FIRE_INTERVAL) < state.frame_time {
+
             bullet_store.create_bullets(dx, dz, &muzzle_transform, 10); //SPREAD_AMOUNT);
 
             player.borrow_mut().last_fire_time = state.frame_time;
             muzzle_flash.add_flash();
         }
-
-        // Draw phase
 
         unsafe {
             //gl::ClearColor(0.0, 0.02, 0.25, 1.0);
@@ -443,19 +411,65 @@ fn main() {
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         }
 
-        // --- draw floor
         floor.draw(&floor_shader, &projection_view, &ambient_color);
 
-        // --- draw player with shadows
-        {}
-
+        // --- draw player
         player_shader.use_shader();
+        player_shader.set_vec3("viewPos", &state.game_camera.position);
+        player_shader.set_mat4("projectionView", &projection_view);
+        player_shader.set_mat4("model", &player_transform);
+        player_shader.set_mat4("aimRot", &aim_rot);
+        player_shader.set_bool("useLight", true);
+
+        // player shadows
+        {
+            let near_plane = 1.0_f32;
+            let far_plane = 50.0_f32;
+            let ortho_size = 10.0_f32;
+
+            let light_projection = Mat4::orthographic_rh_gl(-ortho_size, ortho_size, -ortho_size, ortho_size, near_plane, far_plane);
+
+            let player_position = player.borrow().position;
+            let light_view = Mat4::look_at_rh(
+                player_position - 20.0 * player_light_dir,
+                player_position,
+                vec3(0.0, 1.0, 0.0));
+
+            let light_space_matrix = light_projection * light_view;
+
+            simple_depth_shader.use_shader();
+            simple_depth_shader.set_mat4("lightSpaceMatrix", &light_space_matrix);
+            simple_depth_shader.set_mat4("model", &player_transform);
+
+            unsafe {
+                gl::Viewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+                gl::BindFramebuffer(gl::FRAMEBUFFER, depth_map_fbo.framebuffer_id);
+                gl::Clear(gl::DEPTH_BUFFER_BIT);
+            }
+
+            player.borrow_mut().render(&simple_depth_shader);
+
+            player_shader.use_shader();
+            player_shader.set_mat4("lightSpaceMatrix", &light_space_matrix);
+
+            let texture_unit = 10;
+            let viewport_width = state.viewport_width * state.window_scale.0;
+            let viewport_height = state.viewport_height * state.window_scale.0;
+            unsafe {
+                gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
+                gl::Viewport(0, 0, viewport_width as GLsizei, viewport_height as GLsizei);
+                gl::Enable(gl::DEPTH_TEST);
+
+                gl::ActiveTexture(gl::TEXTURE0 + texture_unit);  // using 10 should work
+                gl::BindTexture(gl::TEXTURE_2D, depth_map_fbo.texture_id);
+            }
+
+            player_shader.set_int("shadow_map", texture_unit as i32);
+        }
 
         if muzzle_flash.muzzle_flash_sprites_age.len() > 0 {
             let min_age = muzzle_flash.get_min_age();
-
             let use_point_light = min_age < 0.03;
-
             let muzzle_world_position = muzzle_transform * vec4(0.0, 0.0, 0.0, 1.0);
 
             let muzzle_world_position3 = vec3(
@@ -472,24 +486,19 @@ fn main() {
             player_shader.set_bool("usePointLight", use_point_light);
         }
 
-        player_shader.set_mat4("projectionView", &projection_view);
-        player_shader.set_mat4("model", &player_transform);
-        player_shader.set_vec3("viewPos", &state.game_camera.position);
-        player_shader.set_mat4("aimRot", &aim_rot);
+        // player_shader.set_mat4("projectionView", &projection_view);
+        // player_shader.set_mat4("model", &player_transform);
+        // player_shader.set_mat4("aimRot", &aim_rot);
 
-        player_shader.set_mat4("lightSpaceMatrix", &Mat4::IDENTITY);
-        player_shader.set_bool("useLight", true);
+        // player_shader.set_mat4("lightSpaceMatrix", &Mat4::IDENTITY);
+        // player_shader.set_bool("useLight", true);
+
         player_shader.set_vec3("ambient", &ambient_color);
 
         player.borrow_mut().update(&mut state, aim_theta);
-
         player.borrow_mut().render(&player_shader);
 
         muzzle_flash.draw(&sprite_shader, &projection_view, &muzzle_transform);
-
-        // if !player.borrow().is_alive {
-        //     player.borrow_mut().set_animation(&dying, 1);
-        // }
 
         wiggly_shader.use_shader();
         wiggly_shader.set_mat4("projectionView", &projection_view);
@@ -503,7 +512,6 @@ fn main() {
 
         bullet_store.draw_bullet_impacts(&sprite_shader, &projection_view);
 
-        // --- draw bullets
         bullet_store.draw_bullets(&instanced_texture_shader, &projection_view);
 
         // blur
@@ -733,17 +741,3 @@ fn mouse_handler(state: &mut State, xpos_in: f64, ypos_in: f64) {
 fn scroll_handler(state: &mut State, _xoffset: f64, yoffset: f64) {
     state.game_camera.process_mouse_scroll(yoffset as f32);
 }
-/*
-world_ray: Vec3(0.68110394, -0.7321868, -2.9802322e-8)
-world_point: Vec3(-2.3841858e-7, 0.0, -1.7502363e-7)
-dx, dz: -0.00000023841858, -0.00000017502363
-aimTheta: 4.07914
-
-
-world_ray: Vec3(0.66441494, -0.65366167, -0.3623247)
-world_point: Vec3(0.37073898, 0.0, -2.3834906)
-dx, dz: 0.37073898, -2.3834906
-aimTheta: 2.9872847
-
-
- */

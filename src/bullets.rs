@@ -210,9 +210,7 @@ impl BulletStore {
     pub fn create_bullets(&mut self, dx: f32, dz: f32, muzzle_transform: &Mat4, spread_amount: i32) {
         // let spreadAmount = 100;
 
-        let spawn_point = *muzzle_transform;
-
-        let muzzle_world_position = spawn_point * vec4(0.0, 0.0, 0.0, 1.0);
+        let muzzle_world_position = *muzzle_transform * vec4(0.0, 0.0, 0.0, 1.0);
 
         let projectile_spawn_point = muzzle_world_position.xyz();
 

@@ -1,19 +1,32 @@
 use small_gl_core::gl::{GLfloat, GLint, GLuint, GLvoid};
 use small_gl_core::{gl, null};
 
-const BLUR_SCALE: i32 = 1; // 2.0;
+pub const BLUR_SCALE: i32 = 1; // 2.0;
+
+pub const SHADOW_WIDTH: i32 = 6 * 1024;
+pub const SHADOW_HEIGHT: i32 = 6 * 1024;
 
 pub struct FrameBuffer {
     pub framebuffer_id: u32, // framebuffer object
     pub texture_id: u32,     // texture object
 }
 
+/*
+    Buffer to original texture names
+
+    depth_map_fbo       : texUnit_shadowMap
+    emission_fbo        : texUnit_emissionFBO
+    scene_fbo           : texUnit_scene
+    horizontal_blur_fbo : texUnit_horzBlur
+    vertical_blur_fbo   : texUnit_vertBlur
+
+ */
+
 pub fn create_depth_map_fbo() -> FrameBuffer {
     let mut depth_map_fbo: GLuint = 0;
     let mut depth_map_texture: GLuint = 0;
 
-    let shadow_width = 6 * 1024;
-    let shadow_height = 6 * 1024;
+
     let border_color = [1.0f32, 1.0f32, 1.0f32, 1.0f32];
 
     unsafe {
@@ -26,8 +39,8 @@ pub fn create_depth_map_fbo() -> FrameBuffer {
             gl::TEXTURE_2D,
             0,
             gl::DEPTH_COMPONENT as GLint,
-            shadow_width,
-            shadow_height,
+            SHADOW_WIDTH,
+            SHADOW_HEIGHT,
             0,
             gl::DEPTH_COMPONENT,
             gl::FLOAT,
@@ -96,15 +109,15 @@ pub fn create_emission_fbo(viewport_width: i32, viewport_height: i32) -> FrameBu
 }
 
 pub fn create_scene_fbo(viewport_width: i32, viewport_height: i32) -> FrameBuffer {
-    let mut scene_render_fbo: GLuint = 0;
-    let mut scene_buffer: GLuint = 0;
+    let mut scene_fbo: GLuint = 0;
+    let mut scene_texture: GLuint = 0;
 
     unsafe {
-        gl::GenFramebuffers(1, &mut scene_render_fbo);
-        gl::GenTextures(1, &mut scene_buffer);
+        gl::GenFramebuffers(1, &mut scene_fbo);
+        gl::GenTextures(1, &mut scene_texture);
 
-        gl::BindFramebuffer(gl::FRAMEBUFFER, scene_render_fbo);
-        gl::BindTexture(gl::TEXTURE_2D, scene_buffer);
+        gl::BindFramebuffer(gl::FRAMEBUFFER, scene_fbo);
+        gl::BindTexture(gl::TEXTURE_2D, scene_texture);
         gl::TexImage2D(
             gl::TEXTURE_2D,
             0,
@@ -120,7 +133,7 @@ pub fn create_scene_fbo(viewport_width: i32, viewport_height: i32) -> FrameBuffe
         gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as GLint);
         gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as GLint);
         gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as GLint);
-        gl::FramebufferTexture2D(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, scene_buffer, 0);
+        gl::FramebufferTexture2D(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, scene_texture, 0);
 
         let mut rbo: GLuint = 0;
 
@@ -136,21 +149,21 @@ pub fn create_scene_fbo(viewport_width: i32, viewport_height: i32) -> FrameBuffe
         gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
     }
     FrameBuffer {
-        framebuffer_id: scene_render_fbo,
-        texture_id: scene_buffer,
+        framebuffer_id: scene_fbo,
+        texture_id: scene_texture,
     }
 }
 
 pub fn create_horizontal_blur_fbo(viewport_width: i32, viewport_height: i32) -> FrameBuffer {
-    let mut horz_blur_fbo: GLuint = 0;
-    let mut horz_blur_buffer: GLuint = 0;
+    let mut horizontal_blur_fbo: GLuint = 0;
+    let mut horizontal_blur_texture: GLuint = 0;
 
     unsafe {
-        gl::GenFramebuffers(1, &mut horz_blur_fbo);
-        gl::GenTextures(1, &mut horz_blur_buffer);
+        gl::GenFramebuffers(1, &mut horizontal_blur_fbo);
+        gl::GenTextures(1, &mut horizontal_blur_texture);
 
-        gl::BindFramebuffer(gl::FRAMEBUFFER, horz_blur_fbo);
-        gl::BindTexture(gl::TEXTURE_2D, horz_blur_buffer);
+        gl::BindFramebuffer(gl::FRAMEBUFFER, horizontal_blur_fbo);
+        gl::BindTexture(gl::TEXTURE_2D, horizontal_blur_texture);
 
         gl::TexImage2D(
             gl::TEXTURE_2D,
@@ -169,7 +182,7 @@ pub fn create_horizontal_blur_fbo(viewport_width: i32, viewport_height: i32) -> 
         gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as GLint);
         gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as GLint);
 
-        gl::FramebufferTexture2D(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, horz_blur_buffer, 0);
+        gl::FramebufferTexture2D(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, horizontal_blur_texture, 0);
 
         if gl::CheckFramebufferStatus(gl::FRAMEBUFFER) != gl::FRAMEBUFFER_COMPLETE {
             panic!("Frame buffer not complete!");
@@ -178,20 +191,20 @@ pub fn create_horizontal_blur_fbo(viewport_width: i32, viewport_height: i32) -> 
         gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
     }
     FrameBuffer {
-        framebuffer_id: horz_blur_fbo,
-        texture_id: horz_blur_buffer,
+        framebuffer_id: horizontal_blur_fbo,
+        texture_id: horizontal_blur_texture,
     }
 }
 
 pub fn create_vertical_blur_fbo(viewport_width: i32, viewport_height: i32) -> FrameBuffer {
-    let mut vert_blur_fbo: GLuint = 0;
-    let mut vert_blur_buffer: GLuint = 0;
+    let mut vertical_blur_fbo: GLuint = 0;
+    let mut vertical_blur_texture: GLuint = 0;
     unsafe {
-        gl::GenFramebuffers(1, &mut vert_blur_fbo);
-        gl::GenTextures(1, &mut vert_blur_buffer);
+        gl::GenFramebuffers(1, &mut vertical_blur_fbo);
+        gl::GenTextures(1, &mut vertical_blur_texture);
 
-        gl::BindFramebuffer(gl::FRAMEBUFFER, vert_blur_fbo);
-        gl::BindTexture(gl::TEXTURE_2D, vert_blur_buffer);
+        gl::BindFramebuffer(gl::FRAMEBUFFER, vertical_blur_fbo);
+        gl::BindTexture(gl::TEXTURE_2D, vertical_blur_texture);
         gl::TexImage2D(
             gl::TEXTURE_2D,
             0,
@@ -207,7 +220,7 @@ pub fn create_vertical_blur_fbo(viewport_width: i32, viewport_height: i32) -> Fr
         gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as GLint);
         gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as GLint);
         gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as GLint);
-        gl::FramebufferTexture2D(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, vert_blur_buffer, 0);
+        gl::FramebufferTexture2D(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, vertical_blur_texture, 0);
 
         if gl::CheckFramebufferStatus(gl::FRAMEBUFFER) != gl::FRAMEBUFFER_COMPLETE {
             panic!("Frame buffer not complete!");
@@ -216,7 +229,7 @@ pub fn create_vertical_blur_fbo(viewport_width: i32, viewport_height: i32) -> Fr
         gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
     }
     FrameBuffer {
-        framebuffer_id: vert_blur_fbo,
-        texture_id: vert_blur_buffer,
+        framebuffer_id: vertical_blur_fbo,
+        texture_id: vertical_blur_texture,
     }
 }
