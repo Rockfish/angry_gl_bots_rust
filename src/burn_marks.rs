@@ -49,9 +49,10 @@ impl BurnMarks {
         bind_texture(shader, 1, "texture_normal", &self.mark_texture);
 
         unsafe {
-            gl::DepthMask(gl::FALSE);
             gl::Enable(gl::BLEND);
+            gl::DepthMask(gl::FALSE);
             gl::Disable(gl::CULL_FACE);
+
             gl::BindVertexArray(self.unit_square_vao as GLuint);
         }
 

@@ -96,3 +96,49 @@ pub fn create_more_obnoxious_quad_vao() -> GLuint {
     }
     more_obnoxious_quad_vao
 }
+
+pub fn render_quad(quad_vao: &mut GLuint) {
+    // initialize (if necessary)
+    if *quad_vao == 0 {
+        #[rustfmt::skip]
+       let quad_vertices: [f32; 20] = [
+            // positions     // texture Coords
+            -1.0,  1.0, 0.0, 0.0, 1.0,
+            -1.0, -1.0, 0.0, 0.0, 0.0,
+             1.0,  1.0, 0.0, 1.0, 1.0,
+             1.0, -1.0, 0.0, 1.0, 0.0,
+        ];
+
+        // setup plane VAO
+        unsafe {
+            let mut quad_vbo: GLuint = 0;
+            gl::GenVertexArrays(1, quad_vao);
+            gl::GenBuffers(1, &mut quad_vbo);
+            gl::BindVertexArray(*quad_vao);
+            gl::BindBuffer(gl::ARRAY_BUFFER, quad_vbo);
+            gl::BufferData(
+                gl::ARRAY_BUFFER,
+                (quad_vertices.len() * SIZE_OF_FLOAT) as GLsizeiptr,
+                quad_vertices.as_ptr() as *const GLvoid,
+                gl::STATIC_DRAW,
+            );
+            gl::EnableVertexAttribArray(0);
+            gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, 0 as *const GLvoid);
+            gl::EnableVertexAttribArray(1);
+            gl::VertexAttribPointer(
+                1,
+                2,
+                gl::FLOAT,
+                gl::FALSE,
+                (5 * SIZE_OF_FLOAT) as GLsizei,
+                (3 * SIZE_OF_FLOAT) as *const GLvoid,
+            );
+        }
+    }
+
+    unsafe {
+        gl::BindVertexArray(*quad_vao);
+        gl::DrawArrays(gl::TRIANGLE_STRIP, 0, 4);
+        gl::BindVertexArray(0);
+    }
+}

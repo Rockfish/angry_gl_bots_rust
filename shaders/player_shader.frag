@@ -32,10 +32,13 @@ uniform vec3 ambient;
 uniform vec3 viewPos;
 
 float ShadowCalculation(float bias, vec4 fragPosLightSpace) {
+
   vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
   projCoords = projCoords * 0.5 + 0.5;
+
   float closestDepth = texture(shadow_map, projCoords.xy).r;
   float currentDepth = projCoords.z;
+
   bias = 0.001;
   float shadow = (currentDepth - bias) > closestDepth ? 1.0 : 0.0;
   return shadow;
@@ -45,16 +48,22 @@ void main() {
   vec4 color = texture(texture_diffuse, TexCoords);
 
   if (useLight) {
+
     vec3 normal = normalize(Norm);
+
     float shadow = 0.0;
 
     { // direction light
+
       vec3 lightDir = normalize(-directionLight.dir);
+
       // TODO use normal texture as well
       float diff = max(dot(normal, lightDir), 0.0);
       vec3 amb = ambient * vec3(texture(texture_diffuse, TexCoords));
       float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
+
       shadow = ShadowCalculation(bias, FragPosLightSpace);
+
       color = (1.0 - shadow) * vec4(directionLight.color, 1.0) * color * diff + vec4(amb, 1.0);
     }
 

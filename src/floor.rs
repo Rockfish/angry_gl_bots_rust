@@ -25,7 +25,7 @@ pub struct Floor {
     pub texture_floor_diffuse: Texture,
     pub texture_floor_normal: Texture,
     pub texture_floor_spec: Texture,
-    pub texture_shadow_map: Texture,
+    // pub texture_shadow_map: Texture,
 }
 
 impl Floor {
@@ -42,7 +42,7 @@ impl Floor {
         let texture_floor_diffuse = Texture::new("assets/Models/Floor D.png", &texture_config).unwrap();
         let texture_floor_normal = Texture::new("assets/Models/Floor N.png", &texture_config).unwrap();
         let texture_floor_spec = Texture::new("assets/Models/Floor M.png", &texture_config).unwrap();
-        let texture_shadow_map = Texture::new("assets/Models/Floor D.png", &texture_config).unwrap();
+        // let texture_shadow_map = Texture::new("assets/Models/Floor D.png", &texture_config).unwrap();
 
         let mut floor_vao: GLuint = 0;
         let mut floor_vbo: GLuint = 0;
@@ -69,7 +69,7 @@ impl Floor {
             texture_floor_diffuse,
             texture_floor_normal,
             texture_floor_spec,
-            texture_shadow_map,
+            // texture_shadow_map,
         }
     }
 
@@ -80,7 +80,7 @@ impl Floor {
         bind_texture(&shader, 0, "texture_diffuse", &self.texture_floor_diffuse);
         bind_texture(&shader, 1, "texture_normal", &self.texture_floor_normal);
         bind_texture(&shader, 2, "texture_spec", &self.texture_floor_spec);
-        bind_texture(&shader, 3, "shadow_map", &self.texture_shadow_map);
+        // bind_texture(&shader, 3, "shadow_map", &self.texture_shadow_map);
 
         // shader.setBool("useLight", light_space_matrix.is_some());
         // shader.setBool("useSpec", light_space_matrix.is_some());
@@ -92,7 +92,7 @@ impl Floor {
 
         let model = Mat4::IDENTITY;
 
-        shader.set_bool("useLight", false);
+        // shader.set_bool("useLight", false);
         shader.set_vec3("ambient", ambient_color);
         // shader.setVec3("viewPos", camera_pos);
         shader.set_mat4("PV", projection_view);
@@ -101,6 +101,7 @@ impl Floor {
         unsafe {
             gl::BindVertexArray(self.floor_vao);
             gl::DrawArrays(gl::TRIANGLES, 0, 6);
+            gl::BindVertexArray(0);
         }
     }
 }
