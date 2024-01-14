@@ -161,7 +161,7 @@ fn main() {
 
     let blur_shader = Shader::new("shaders/basicer_shader.vert", "shaders/blur_shader.frag").unwrap();
     let scene_draw_shader = Shader::new("shaders/basicer_shader.vert", "shaders/texture_merge_shader.frag").unwrap();
-    // let depth_shader = Shader::new("shaders/depth_shader.vert", "shaders/depth_shader.frag").unwrap();
+    let depth_shader = Shader::new("shaders/depth_shader.vert", "shaders/depth_shader.frag").unwrap();
     let _texture_shader = Shader::new("shaders/geom_shader.vert", "shaders/texture_shader.frag").unwrap();
 
     let sprite_shader = Shader::new("shaders/geom_shader2.vert", "shaders/sprite_shader.frag").unwrap();
@@ -330,20 +330,13 @@ fn main() {
             println!("axes: {:?}", axes)
         }
 
-        // unsafe {
-        //     gl::ActiveTexture(gl::TEXTURE0);
-        //     // gl::ActiveTexture(gl::TEXTURE0 + scene_fbo.texture_id);
-        //     // gl::BindTexture(gl::TEXTURE_2D, scene_fbo.texture_id as GLuint);
-        //     // gl::BindFramebuffer(gl::FRAMEBUFFER, scene_fbo.framebuffer_id);
-        // }
-
-        muzzle_flash.update(state.delta_time);
-
-        bullet_store.update_bullets(&mut state);
-
-        if player.borrow().is_alive {
-            enemy_system.update(&mut state);
-            enemy_system.chase_player(&mut state);
+        unsafe {
+            gl::ClearColor(0.0, 0.02, 0.25, 1.0);
+            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
+            //     gl::ActiveTexture(gl::TEXTURE0);
+            //     // gl::ActiveTexture(gl::TEXTURE0 + scene_fbo.texture_id);
+            //     // gl::BindTexture(gl::TEXTURE_2D, scene_fbo.texture_id as GLuint);
+            //     // gl::BindFramebuffer(gl::FRAMEBUFFER, scene_fbo.framebuffer_id);
         }
 
         state.game_camera.position = player.borrow().position + camera_follow_vec.clone();
@@ -374,8 +367,6 @@ fn main() {
         let mut dx: f32 = 0.0;
         let mut dz: f32 = 0.0;
 
-        // player.borrow_mut().is_alive = true;
-
         if player.borrow().is_alive && buffer_ready {
             let world_ray = get_world_ray_from_mouse(
                 state.mouse_x,
@@ -386,15 +377,13 @@ fn main() {
                 &state.game_projection,
             );
 
-            // the xz plane
-            let plane_point = vec3(0.0, 0.0, 0.0);
-            let plane_normal = vec3(0.0, 1.0, 0.0);
+            let xz_plane_point = vec3(0.0, 0.0, 0.0);
+            let xz_plane_normal = vec3(0.0, 1.0, 0.0);
 
-            let world_point = ray_plane_intersection(state.game_camera.position, world_ray, plane_point, plane_normal).unwrap();
+            let world_point = ray_plane_intersection(state.game_camera.position, world_ray, xz_plane_point, xz_plane_normal).unwrap();
 
             dx = world_point.x - player.borrow().position.x;
             dz = world_point.z - player.borrow().position.z;
-
             aim_theta = (dx / dz).atan() + if dz < 0.0 { PI } else { 0.0 };
 
             if state.mouse_x.abs() < 0.005 && state.mouse_y.abs() < 0.005 {
@@ -412,27 +401,19 @@ fn main() {
 
         if player.borrow().is_alive && player.borrow().is_trying_to_fire && (player.borrow().last_fire_time + FIRE_INTERVAL) < state.frame_time {
             bullet_store.create_bullets(dx, dz, &muzzle_transform, 10); //SPREAD_AMOUNT);
-
             player.borrow_mut().last_fire_time = state.frame_time;
             muzzle_flash.add_flash();
         }
 
-        unsafe {
-            //gl::ClearColor(0.0, 0.02, 0.25, 1.0);
-            gl::ClearColor(0.8, 0.82, 0.85, 1.0);
-            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
+        muzzle_flash.update(state.delta_time);
+        bullet_store.update_bullets(&mut state);
+
+        if player.borrow().is_alive {
+            enemy_system.update(&mut state);
+            enemy_system.chase_player(&mut state);
         }
 
-        player_shader.use_shader();
-        player_shader.set_vec3("viewPos", &state.game_camera.position);
-        player_shader.set_mat4("projectionView", &projection_view);
-        player_shader.set_mat4("model", &player_transform);
-        player_shader.set_mat4("aimRot", &aim_rot);
-        player_shader.set_bool("useLight", true);
-
-        player.borrow_mut().update(&mut state, aim_theta);
-
-        // shadows
+        // shadows - render to depth fbo
 
         let near_plane: f32 = 1.0;
         let far_plane: f32 = 50.0;
@@ -457,15 +438,22 @@ fn main() {
         player_shader.use_shader();
         player_shader.set_bool("depth_mode", true);
         player_shader.set_mat4("lightSpaceMatrix", &light_space_matrix);
+        player_shader.set_vec3("viewPos", &state.game_camera.position);
+        player_shader.set_mat4("projectionView", &projection_view);
+        player_shader.set_mat4("model", &player_transform);
+        player_shader.set_mat4("aimRot", &aim_rot);
+        player_shader.set_bool("useLight", true);
+
+        player.borrow_mut().update(&mut state, aim_theta);
         player.borrow_mut().render(&player_shader);
 
         wiggly_shader.use_shader();
         wiggly_shader.set_bool("depth_mode", true);
         wiggly_shader.set_mat4("lightSpaceMatrix", &light_space_matrix);
+
         enemy_system.draw_enemies(&enemy_model, &wiggly_shader, &mut state);
-        // state.burn_marks.draw_marks(&depth_shader, &projection_view, state.delta_time);
-        // bullet_store.draw_bullet_impacts(&depth_shader, &projection_view);
-        // bullet_store.draw_bullets(&depth_shader, &projection_view);
+
+        // reset after shadows
 
         let viewport_width = state.viewport_width * state.window_scale.0;
         let viewport_height = state.viewport_height * state.window_scale.0;
@@ -476,23 +464,7 @@ fn main() {
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         }
 
-        let texture_unit = 10;
-        unsafe {
-            gl::ActiveTexture(gl::TEXTURE0 + texture_unit);
-            gl::BindTexture(gl::TEXTURE_2D, depth_map_fbo.texture_id);
-        }
-        player_shader.set_int("shadow_map", texture_unit as i32);
-
-        floor_shader.use_shader();
-        unsafe {
-            gl::ActiveTexture(gl::TEXTURE0 + texture_unit);
-            gl::BindTexture(gl::TEXTURE_2D, depth_map_fbo.texture_id);
-        }
-        floor_shader.set_vec3("viewPos", &state.game_camera.position);
-        floor_shader.set_mat4("lightSpaceMatrix", &light_space_matrix);
-        floor_shader.set_int("shadow_map", texture_unit as i32);
-        floor_shader.set_bool("useLight", true);
-        floor_shader.set_bool("useSpec", true);
+        let shadow_texture_unit = 10;
 
         // let debug_depth = false;
         // if debug_depth {
@@ -507,39 +479,48 @@ fn main() {
         //     render_quad(&mut quad_vao);
         // }
 
+        let mut use_point_light = false;
+        let mut muzzle_world_position = Vec3::default();
+
         if muzzle_flash.muzzle_flash_sprites_age.len() > 0 {
             let min_age = muzzle_flash.get_min_age();
-            let muzzle_world_position = muzzle_transform * vec4(0.0, 0.0, 0.0, 1.0);
+            let muzzle_world_position_vec4 = muzzle_transform * vec4(0.0, 0.0, 0.0, 1.0);
 
-            let muzzle_world_position3 = vec3(
-                muzzle_world_position.x / muzzle_world_position.w,
-                muzzle_world_position.y / muzzle_world_position.w,
-                muzzle_world_position.z / muzzle_world_position.w,
+            muzzle_world_position = vec3(
+                muzzle_world_position_vec4.x / muzzle_world_position_vec4.w,
+                muzzle_world_position_vec4.y / muzzle_world_position_vec4.w,
+                muzzle_world_position_vec4.z / muzzle_world_position_vec4.w,
             );
 
-            let use_point_light = min_age < 0.03;
-            player_shader.use_shader();
-            player_shader.set_bool("usePointLight", use_point_light);
-            player_shader.set_vec3("pointLight.worldPos", &muzzle_world_position3);
-            player_shader.set_vec3("pointLight.color", &muzzle_point_light_color);
-
-            floor_shader.use_shader();
-            floor_shader.set_bool("usePointLight", use_point_light);
-            floor_shader.set_vec3("pointLight.worldPos", &muzzle_world_position3);
-            floor_shader.set_vec3("pointLight.color", &muzzle_point_light_color);
-        } else {
-            let use_point_light = false;
-            player_shader.use_shader();
-            player_shader.set_bool("usePointLight", use_point_light);
-            floor_shader.use_shader();
-            floor_shader.set_bool("usePointLight", use_point_light);
+            use_point_light = min_age < 0.03;
         }
 
+        floor_shader.use_shader();
+        unsafe {
+            gl::ActiveTexture(gl::TEXTURE0 + shadow_texture_unit);
+            gl::BindTexture(gl::TEXTURE_2D, depth_map_fbo.texture_id);
+        }
+        floor_shader.set_vec3("viewPos", &state.game_camera.position);
+        floor_shader.set_mat4("lightSpaceMatrix", &light_space_matrix);
+        floor_shader.set_int("shadow_map", shadow_texture_unit as i32);
+        floor_shader.set_bool("useLight", true);
+        floor_shader.set_bool("useSpec", true);
+        floor_shader.set_bool("usePointLight", use_point_light);
+        floor_shader.set_vec3("pointLight.color", &muzzle_point_light_color);
+        floor_shader.set_vec3("pointLight.worldPos", &muzzle_world_position);
         floor.draw(&floor_shader, &projection_view, &ambient_color);
 
         player_shader.use_shader();
+        unsafe {
+            gl::ActiveTexture(gl::TEXTURE0 + shadow_texture_unit);
+            gl::BindTexture(gl::TEXTURE_2D, depth_map_fbo.texture_id);
+        }
+        player_shader.set_int("shadow_map", shadow_texture_unit as i32);
         player_shader.set_bool("depth_mode", false);
         player_shader.set_vec3("ambient", &ambient_color);
+        player_shader.set_bool("usePointLight", use_point_light);
+        player_shader.set_vec3("pointLight.color", &muzzle_point_light_color);
+        player_shader.set_vec3("pointLight.worldPos", &muzzle_world_position);
         player.borrow_mut().render(&player_shader);
 
         muzzle_flash.draw(&sprite_shader, &projection_view, &muzzle_transform);
