@@ -21,6 +21,8 @@ uniform mat4 lightSpaceMatrix;
 uniform vec3 nosePos;
 uniform float time;
 
+uniform bool depth_mode;
+
 const float wiggleMagnitude = 3.0;
 const float wiggleDistModifier = 0.12;
 const float wiggleTimeModifier = 9.4;
@@ -28,7 +30,11 @@ const float wiggleTimeModifier = 9.4;
 void main() {
   float xOffset = sin(wiggleTimeModifier * time + wiggleDistModifier * distance(nosePos, pos)) * wiggleMagnitude;
 
-  gl_Position = projectionView * model * vec4(pos.x + xOffset, pos.y, pos.z, 1.0);
+  if (depth_mode) {
+    gl_Position = lightSpaceMatrix * model * vec4(pos.x + xOffset, pos.y, pos.z, 1.0);
+  } else {
+    gl_Position = projectionView * model * vec4(pos.x + xOffset, pos.y, pos.z, 1.0);
+  }
 
   TexCoords = tex;
 

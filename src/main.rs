@@ -151,7 +151,7 @@ fn main() {
     println!("Loading assets");
 
     // for debug
-    let _basicer_shader = Shader::new("shaders/basicer_shader.vert", "shaders/basicer_shader.frag").unwrap();
+    // let _basicer_shader = Shader::new("shaders/basicer_shader.vert", "shaders/basicer_shader.frag").unwrap();
 
     let player_shader = Shader::new("shaders/player_shader.vert", "shaders/player_shader.frag").unwrap();
     let wiggly_shader = Shader::new("shaders/wiggly_shader.vert", "shaders/player_shader.frag").unwrap();
@@ -161,7 +161,7 @@ fn main() {
 
     let blur_shader = Shader::new("shaders/basicer_shader.vert", "shaders/blur_shader.frag").unwrap();
     let scene_draw_shader = Shader::new("shaders/basicer_shader.vert", "shaders/texture_merge_shader.frag").unwrap();
-    let depth_shader = Shader::new("shaders/depth_shader.vert", "shaders/depth_shader.frag").unwrap();
+    // let depth_shader = Shader::new("shaders/depth_shader.vert", "shaders/depth_shader.frag").unwrap();
     let _texture_shader = Shader::new("shaders/geom_shader.vert", "shaders/texture_shader.frag").unwrap();
 
     let sprite_shader = Shader::new("shaders/geom_shader2.vert", "shaders/sprite_shader.frag").unwrap();
@@ -174,16 +174,14 @@ fn main() {
     // const lightColor: Vec3 = LIGHT_FACTOR * 1.0 * vec3(0.406, 0.723, 1.0);
 
     let muzzle_point_light_color = vec3(1.0, 0.2, 0.0);
-    // depth_shader.use_shader();
-    // let _lsml = depth_shader.get_uniform_location("lightSpaceMatrix");
 
-    player_shader.use_shader();
 
     // set lighting
     let player_light_dir: Vec3 = vec3(-1.0, -1.0, -1.0).normalize_or_zero();
     let light_color: Vec3 = LIGHT_FACTOR * 1.0 * vec3(NON_BLUE * 0.406, NON_BLUE * 0.723, 1.0);
     let ambient_color: Vec3 = LIGHT_FACTOR * 0.10 * vec3(NON_BLUE * 0.7, NON_BLUE * 0.7, 0.7);
 
+    player_shader.use_shader();
     player_shader.set_vec3("directionLight.dir", &player_light_dir);
     player_shader.set_vec3("directionLight.color", &light_color);
     player_shader.set_vec3("ambient", &ambient_color);
@@ -203,7 +201,6 @@ fn main() {
     wiggly_shader.set_vec3("ambient", &ambient_color);
 
     let enemy_model = ModelBuilder::new("enemy", "assets/Models/Eeldog/EelDog.FBX").build().unwrap();
-
 
     let floor = Floor::new();
 
@@ -426,8 +423,6 @@ fn main() {
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         }
 
-        // floor.draw(&floor_shader, &projection_view, &ambient_color);
-
         player_shader.use_shader();
         player_shader.set_vec3("viewPos", &state.game_camera.position);
         player_shader.set_mat4("projectionView", &projection_view);
@@ -435,17 +430,13 @@ fn main() {
         player_shader.set_mat4("aimRot", &aim_rot);
         player_shader.set_bool("useLight", true);
 
-        floor_shader.use_shader();
-        floor_shader.set_vec3("viewPos", &state.game_camera.position);
-
         player.borrow_mut().update(&mut state, aim_theta);
 
-        // player shadows
-        // {
-        let near_plane = 1.0_f32;
-        let far_plane = 50.0_f32;
-        let ortho_size = 10.0_f32;
+        // shadows
 
+        let near_plane: f32 = 1.0;
+        let far_plane: f32 = 50.0;
+        let ortho_size: f32 = 10.0;
         let player_position = player.borrow().position;
 
         let light_projection = Mat4::orthographic_rh_gl(-ortho_size, ortho_size, -ortho_size, ortho_size, near_plane, far_plane);
@@ -463,22 +454,18 @@ fn main() {
             gl::Clear(gl::DEPTH_BUFFER_BIT);
         }
 
-        depth_shader.use_shader();
-        depth_shader.set_mat4("lightSpaceMatrix", &light_space_matrix);
-        // depth_shader.set_mat4("model", &player_transform);
+        player_shader.use_shader();
+        player_shader.set_bool("depth_mode", true);
+        player_shader.set_mat4("lightSpaceMatrix", &light_space_matrix);
+        player.borrow_mut().render(&player_shader);
 
-        // floor.draw(&depth_shader, &projection_view, &ambient_color);
-
-        depth_shader.set_mat4("model", &player_transform);
-        player.borrow_mut().render(&depth_shader);
-
-        enemy_system.draw_enemies(&enemy_model, &depth_shader, &mut state);
+        wiggly_shader.use_shader();
+        wiggly_shader.set_bool("depth_mode", true);
+        wiggly_shader.set_mat4("lightSpaceMatrix", &light_space_matrix);
+        enemy_system.draw_enemies(&enemy_model, &wiggly_shader, &mut state);
         // state.burn_marks.draw_marks(&depth_shader, &projection_view, state.delta_time);
         // bullet_store.draw_bullet_impacts(&depth_shader, &projection_view);
         // bullet_store.draw_bullets(&depth_shader, &projection_view);
-
-        player_shader.use_shader();
-        player_shader.set_mat4("lightSpaceMatrix", &light_space_matrix);
 
         let viewport_width = state.viewport_width * state.window_scale.0;
         let viewport_height = state.viewport_height * state.window_scale.0;
@@ -486,7 +473,7 @@ fn main() {
         unsafe {
             gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
             gl::Viewport(0, 0, viewport_width as GLsizei, viewport_height as GLsizei);
-            gl::Enable(gl::DEPTH_TEST);
+            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         }
 
         let texture_unit = 10;
@@ -501,23 +488,24 @@ fn main() {
             gl::ActiveTexture(gl::TEXTURE0 + texture_unit);
             gl::BindTexture(gl::TEXTURE_2D, depth_map_fbo.texture_id);
         }
+        floor_shader.set_vec3("viewPos", &state.game_camera.position);
+        floor_shader.set_mat4("lightSpaceMatrix", &light_space_matrix);
         floor_shader.set_int("shadow_map", texture_unit as i32);
         floor_shader.set_bool("useLight", true);
         floor_shader.set_bool("useSpec", true);
 
-        let debug_depth = false;
-        if debug_depth {
-            unsafe {
-                gl::ActiveTexture(gl::TEXTURE0);
-                gl::BindTexture(gl::TEXTURE_2D, depth_map_fbo.texture_id);
-                gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
-            }
-            debug_depth_shader.use_shader();
-            debug_depth_shader.set_float("near_plane", near_plane);
-            debug_depth_shader.set_float("far_plane", far_plane);
-            render_quad(&mut quad_vao);
-        }
-
+        // let debug_depth = false;
+        // if debug_depth {
+        //     unsafe {
+        //         gl::ActiveTexture(gl::TEXTURE0);
+        //         gl::BindTexture(gl::TEXTURE_2D, depth_map_fbo.texture_id);
+        //         gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
+        //     }
+        //     debug_depth_shader.use_shader();
+        //     debug_depth_shader.set_float("near_plane", near_plane);
+        //     debug_depth_shader.set_float("far_plane", far_plane);
+        //     render_quad(&mut quad_vao);
+        // }
 
         if muzzle_flash.muzzle_flash_sprites_age.len() > 0 {
             let min_age = muzzle_flash.get_min_age();
@@ -550,6 +538,7 @@ fn main() {
         floor.draw(&floor_shader, &projection_view, &ambient_color);
 
         player_shader.use_shader();
+        player_shader.set_bool("depth_mode", false);
         player_shader.set_vec3("ambient", &ambient_color);
         player.borrow_mut().render(&player_shader);
 
@@ -559,9 +548,11 @@ fn main() {
         wiggly_shader.set_mat4("projectionView", &projection_view);
         wiggly_shader.set_mat4("lightSpaceMatrix", &light_space_matrix);
         wiggly_shader.set_bool("useLight", true);
+        wiggly_shader.set_bool("depth_mode", false);
         wiggly_shader.set_vec3("ambient", &ambient_color);
 
         enemy_system.draw_enemies(&enemy_model, &wiggly_shader, &mut state);
+
         state.burn_marks.draw_marks(&basic_texture_shader, &projection_view, state.delta_time);
         bullet_store.draw_bullet_impacts(&sprite_shader, &projection_view);
         bullet_store.draw_bullets(&instanced_texture_shader, &projection_view);

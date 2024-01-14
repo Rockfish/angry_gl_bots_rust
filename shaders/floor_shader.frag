@@ -21,9 +21,11 @@ uniform bool usePointLight;
 uniform sampler2D texture_diffuse;
 uniform sampler2D texture_normal;
 uniform sampler2D texture_specular;
+
 uniform bool useLight;
 uniform bool useSpec;
 uniform vec3 ambient;
+
 uniform sampler2D shadow_map;
 uniform vec3 viewPos;
 

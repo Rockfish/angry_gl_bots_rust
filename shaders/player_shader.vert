@@ -14,21 +14,19 @@ const int MAX_BONE_INFLUENCE = 4;
 uniform mat4 finalBonesMatrices[MAX_BONES];
 uniform mat4 nodeTransform;
 
-//uniform mat4 projection;
-//uniform mat4 view;
 uniform mat4 projectionView;
 uniform mat4 model;
+uniform mat4 aimRot;
 
 out vec2 TexCoords;
 out vec3 Norm;
 out vec4 FragPosLightSpace;
 out vec3 FragWorldPos;
 
-uniform mat4 aimRot;
+uniform bool depth_mode;
 uniform mat4 lightSpaceMatrix;
 
-void main() {
-
+vec4 get_animated_position() {
   vec4 totalPosition = vec4(0.0f);
   vec3 localNormal = vec3(0.0f);
 
@@ -53,7 +51,18 @@ void main() {
     totalPosition = nodeTransform * vec4(pos, 1.0f);
   }
 
-  gl_Position = projectionView * model * totalPosition;
+  return totalPosition;
+}
+
+void main() {
+
+  vec4 final_position = get_animated_position();
+
+  if (depth_mode) {
+    gl_Position = lightSpaceMatrix * model * final_position;
+  } else {
+    gl_Position = projectionView * model * final_position;
+  }
 
   TexCoords = tex;
 

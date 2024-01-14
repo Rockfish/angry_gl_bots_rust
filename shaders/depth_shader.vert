@@ -18,8 +18,7 @@ uniform mat4 nodeTransform;
 uniform mat4 lightSpaceMatrix;
 uniform mat4 model;
 
-void main() {
-
+vec4 get_animated_position() {
   vec4 totalPosition = vec4(0.0f);
   vec3 localNormal = vec3(0.0f);
 
@@ -44,5 +43,12 @@ void main() {
     totalPosition = nodeTransform * vec4(pos, 1.0f);
   }
 
-  gl_Position =  lightSpaceMatrix * model * totalPosition;
+  return totalPosition;
+}
+
+void main() {
+
+  vec4 final_position = get_animated_position();
+
+  gl_Position =  lightSpaceMatrix * model * final_position;
 }

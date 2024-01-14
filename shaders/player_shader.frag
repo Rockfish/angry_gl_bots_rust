@@ -27,6 +27,7 @@ uniform sampler2D texture_specular;
 uniform sampler2D texture_normals;
 
 uniform sampler2D shadow_map;
+
 uniform bool useLight;
 uniform vec3 ambient;
 uniform vec3 viewPos;

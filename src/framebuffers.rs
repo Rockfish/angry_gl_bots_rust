@@ -26,7 +26,6 @@ pub fn create_depth_map_fbo() -> FrameBuffer {
     let mut depth_map_fbo: GLuint = 0;
     let mut depth_map_texture: GLuint = 0;
 
-
     let border_color = [1.0f32, 1.0f32, 1.0f32, 1.0f32];
 
     unsafe {
@@ -48,14 +47,16 @@ pub fn create_depth_map_fbo() -> FrameBuffer {
         );
         gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as GLint);
         gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as GLint);
-        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_BORDER as GLint);
-        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_BORDER as GLint);
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_BORDER as GLint); // gl::REPEAT in book
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_BORDER as GLint); // gl::REPEAT in book
 
-        gl::TexParameterfv(gl::TEXTURE_2D, gl::TEXTURE_BORDER_COLOR, border_color.as_ptr());
+        gl::TexParameterfv(gl::TEXTURE_2D, gl::TEXTURE_BORDER_COLOR, border_color.as_ptr()); // ?
+
         gl::BindFramebuffer(gl::FRAMEBUFFER, depth_map_fbo);
         gl::FramebufferTexture2D(gl::FRAMEBUFFER, gl::DEPTH_ATTACHMENT, gl::TEXTURE_2D, depth_map_texture, 0);
-        gl::DrawBuffer(gl::NONE);
-        gl::ReadBuffer(gl::NONE);
+
+        gl::DrawBuffer(gl::NONE);  // specifies no color data
+        gl::ReadBuffer(gl::NONE);  // specifies no color data
         gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
     }
 
