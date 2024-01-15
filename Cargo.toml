@@ -16,6 +16,7 @@ small_gl_core = { path = "../small_gl_core" }
 itertools = "0.12.0"
 ordered-float = "4.2.0"
 once_cell = "1.19.0"
+rodio = { version = "0.17.3", features = ["wav"] }
 
 [[example]]
 name = "animation_weights"

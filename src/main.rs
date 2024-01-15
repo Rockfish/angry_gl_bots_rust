@@ -19,6 +19,7 @@ mod geom;
 mod muzzle_flash;
 mod player;
 mod quads;
+mod sound_system;
 mod sprite_sheet;
 mod texture_cache;
 
@@ -38,6 +39,7 @@ use glam::{vec2, vec3, vec4, Mat4, Vec3};
 use glfw::JoystickId::Joystick1;
 use glfw::{Action, Context, Key, MouseButton};
 use log::error;
+use rodio::{Decoder, OutputStream, Sink, Source};
 use small_gl_core::camera::{Camera, CameraMovement};
 use small_gl_core::gl;
 use small_gl_core::gl::{GLsizei, GLuint};
@@ -46,8 +48,11 @@ use small_gl_core::model::ModelBuilder;
 use small_gl_core::shader::Shader;
 use std::cell::RefCell;
 use std::f32::consts::PI;
+use std::fs::File;
+use std::io::{BufReader, Cursor, Read};
 use std::rc::Rc;
 // use std::thread::sleep;
+use crate::sound_system::{AudioSource, SoundSystem};
 use small_gl_core::hash_map::HashSet;
 
 const PARALLELISM: i32 = 4;
@@ -114,6 +119,7 @@ struct State {
     player: Rc<RefCell<Player>>,
     enemies: Vec<Enemy>,
     burn_marks: BurnMarks,
+    sound_system: SoundSystem,
 }
 
 fn error_callback(err: glfw::Error, description: String) {
@@ -287,6 +293,7 @@ fn main() {
         player: Rc::new(player.into()),
         enemies: vec![],
         burn_marks: BurnMarks::new(unit_square_quad),
+        sound_system: SoundSystem::new(),
     };
 
     let mut aim_theta = 0.0f32;
@@ -403,6 +410,8 @@ fn main() {
             bullet_store.create_bullets(dx, dz, &muzzle_transform, 10); //SPREAD_AMOUNT);
             player.borrow_mut().last_fire_time = state.frame_time;
             muzzle_flash.add_flash();
+
+            state.sound_system.play_player_shooting();
         }
 
         muzzle_flash.update(state.delta_time);
@@ -439,7 +448,7 @@ fn main() {
         player_shader.set_mat4("projectionView", &projection_view);
         player_shader.set_mat4("model", &player_transform);
         player_shader.set_mat4("aimRot", &aim_rot);
-        player_shader.set_bool("useLight", true);
+        player_shader.set_bool("useLight", false);
 
         player.borrow_mut().update(&mut state, aim_theta);
         player.borrow_mut().render(&player_shader);
@@ -512,9 +521,10 @@ fn main() {
             gl::ActiveTexture(gl::TEXTURE0 + shadow_texture_unit);
             gl::BindTexture(gl::TEXTURE_2D, depth_map_fbo.texture_id);
         }
-        player_shader.set_int("shadow_map", shadow_texture_unit as i32);
+        player_shader.set_bool("useLight", true);
         player_shader.set_bool("depth_mode", false);
         player_shader.set_vec3("ambient", &ambient_color);
+        player_shader.set_int("shadow_map", shadow_texture_unit as i32);
         player_shader.set_bool("usePointLight", use_point_light);
         player_shader.set_vec3("pointLight.color", &muzzle_point_light_color);
         player_shader.set_vec3("pointLight.worldPos", &muzzle_world_position);

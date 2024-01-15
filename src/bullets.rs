@@ -381,6 +381,7 @@ impl BulletStore {
             if !enemy.is_alive {
                 self.bullet_impact_sprites.push(SpriteSheetSprite::new(enemy.position));
                 state.burn_marks.add_mark(enemy.position);
+                state.sound_system.play_enemy_destroyed();
             }
         }
 
