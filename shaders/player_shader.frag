@@ -25,10 +25,12 @@ uniform bool usePointLight;
 uniform sampler2D texture_diffuse;
 uniform sampler2D texture_specular;
 uniform sampler2D texture_normals;
+uniform sampler2D texture_emissive;
 
 uniform sampler2D shadow_map;
 
 uniform bool useLight;
+uniform bool useEmissive;
 uniform vec3 ambient;
 uniform vec3 viewPos;
 
@@ -83,6 +85,11 @@ void main() {
       float spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
       color += str * spec * texture(texture_specular, TexCoords) * vec4(directionLight.color, 1.0);
       color += spec * 0.1 * vec4(1.0,1.0,1.0,1.0);
+    }
+
+    if (useEmissive) {
+      vec4 emission = texture(texture_emissive, TexCoords);//.rgb;
+      color += emission;
     }
   }
 

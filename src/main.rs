@@ -522,6 +522,7 @@ fn main() {
             gl::BindTexture(gl::TEXTURE_2D, depth_map_fbo.texture_id);
         }
         player_shader.set_bool("useLight", true);
+        player_shader.set_bool("useEmissive", true);
         player_shader.set_bool("depth_mode", false);
         player_shader.set_vec3("ambient", &ambient_color);
         player_shader.set_int("shadow_map", shadow_texture_unit as i32);
@@ -536,6 +537,7 @@ fn main() {
         wiggly_shader.set_mat4("projectionView", &projection_view);
         wiggly_shader.set_mat4("lightSpaceMatrix", &light_space_matrix);
         wiggly_shader.set_bool("useLight", true);
+        player_shader.set_bool("useEmissive", false);
         wiggly_shader.set_bool("depth_mode", false);
         wiggly_shader.set_vec3("ambient", &ambient_color);
 
