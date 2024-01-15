@@ -4,7 +4,6 @@ use small_gl_core::gl::GLuint;
 use small_gl_core::shader::Shader;
 use small_gl_core::texture::{bind_texture, Texture, TextureConfig, TextureWrap};
 
-
 const BURN_MARK_TIME: f32 = 5.0;
 
 pub struct BurnMark {

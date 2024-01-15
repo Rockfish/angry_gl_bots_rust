@@ -1,14 +1,14 @@
-use std::f32::consts::PI;
-use std::ops::Deref;
 use crate::State;
-use glam::{Mat4, Vec2, vec2, Vec3, vec3};
-use std::rc::Rc;
-use std::time::Duration;
+use glam::{vec2, vec3, Mat4, Vec2, Vec3};
 use small_gl_core::animator::{AnimationClip, AnimationRepeat, WeightedAnimation};
 use small_gl_core::hash_map::HashMap;
 use small_gl_core::model::{Model, ModelBuilder};
 use small_gl_core::shader::Shader;
 use small_gl_core::texture::TextureType;
+use std::f32::consts::PI;
+use std::ops::Deref;
+use std::rc::Rc;
+use std::time::Duration;
 
 const PLAYER_SPEED: f32 = 2.0;
 // 1.5;
@@ -52,7 +52,7 @@ impl PlayerAnimations {
             idle: Rc::new(AnimationClip::new(55.0, 130.0, AnimationRepeat::Forever)),
             right: Rc::new(AnimationClip::new(184.0, 204.0, AnimationRepeat::Forever)),
             forward: Rc::new(AnimationClip::new(134.0, 154.0, AnimationRepeat::Forever)),
-            back:Rc::new(AnimationClip::new(159.0, 179.0, AnimationRepeat::Forever)),
+            back: Rc::new(AnimationClip::new(159.0, 179.0, AnimationRepeat::Forever)),
             left: Rc::new(AnimationClip::new(209.0, 229.0, AnimationRepeat::Forever)),
             dead: Rc::new(AnimationClip::new(234.0, 293.0, AnimationRepeat::Once)),
         }
@@ -66,7 +66,7 @@ impl PlayerAnimations {
             "back" => &self.back,
             "left" => &self.left,
             "dead" => &self.dead,
-            _ => panic!("animation not found")
+            _ => panic!("animation not found"),
         }
     }
 }
@@ -143,7 +143,8 @@ impl Player {
     pub fn set_animation(&mut self, animation_name: &Rc<str>, seconds: u32) {
         if !self.animation_name.eq(animation_name) {
             self.animation_name = animation_name.clone();
-            self.model.play_clip_with_transition(&self.animations.get(&self.animation_name.deref()), Duration::from_secs(seconds as u64));
+            self.model
+                .play_clip_with_transition(&self.animations.get(&self.animation_name.deref()), Duration::from_secs(seconds as u64));
         }
     }
 

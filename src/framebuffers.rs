@@ -12,15 +12,15 @@ pub struct FrameBuffer {
 }
 
 /*
-    Buffer to original texture names
+   Buffer to original texture names
 
-    depth_map_fbo       : texUnit_shadowMap
-    emission_fbo        : texUnit_emissionFBO
-    scene_fbo           : texUnit_scene
-    horizontal_blur_fbo : texUnit_horzBlur
-    vertical_blur_fbo   : texUnit_vertBlur
+   depth_map_fbo       : texUnit_shadowMap
+   emission_fbo        : texUnit_emissionFBO
+   scene_fbo           : texUnit_scene
+   horizontal_blur_fbo : texUnit_horzBlur
+   vertical_blur_fbo   : texUnit_vertBlur
 
- */
+*/
 
 pub fn create_depth_map_fbo() -> FrameBuffer {
     let mut depth_map_fbo: GLuint = 0;
@@ -55,8 +55,8 @@ pub fn create_depth_map_fbo() -> FrameBuffer {
         gl::BindFramebuffer(gl::FRAMEBUFFER, depth_map_fbo);
         gl::FramebufferTexture2D(gl::FRAMEBUFFER, gl::DEPTH_ATTACHMENT, gl::TEXTURE_2D, depth_map_texture, 0);
 
-        gl::DrawBuffer(gl::NONE);  // specifies no color data
-        gl::ReadBuffer(gl::NONE);  // specifies no color data
+        gl::DrawBuffer(gl::NONE); // specifies no color data
+        gl::ReadBuffer(gl::NONE); // specifies no color data
         gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
     }
 

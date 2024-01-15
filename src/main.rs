@@ -24,12 +24,13 @@ mod texture_cache;
 
 extern crate glfw;
 
-use std::cell::RefCell;
 use crate::bullets::BulletStore;
 use crate::burn_marks::BurnMarks;
 use crate::enemy::{Enemy, EnemySystem};
 use crate::floor::Floor;
-use crate::framebuffers::{create_depth_map_fbo, create_emission_fbo, create_horizontal_blur_fbo, create_scene_fbo, create_vertical_blur_fbo, SHADOW_HEIGHT, SHADOW_WIDTH};
+use crate::framebuffers::{
+    create_depth_map_fbo, create_emission_fbo, create_horizontal_blur_fbo, create_scene_fbo, create_vertical_blur_fbo, SHADOW_HEIGHT, SHADOW_WIDTH,
+};
 use crate::muzzle_flash::MuzzleFlash;
 use crate::player::Player;
 use crate::quads::{create_more_obnoxious_quad_vao, create_unit_square_vao, render_quad};
@@ -43,6 +44,7 @@ use small_gl_core::gl::{GLsizei, GLuint};
 use small_gl_core::math::{get_world_ray_from_mouse, ray_plane_intersection};
 use small_gl_core::model::ModelBuilder;
 use small_gl_core::shader::Shader;
+use std::cell::RefCell;
 use std::f32::consts::PI;
 use std::rc::Rc;
 // use std::thread::sleep;
@@ -175,7 +177,6 @@ fn main() {
 
     let muzzle_point_light_color = vec3(1.0, 0.2, 0.0);
 
-
     // set lighting
     let player_light_dir: Vec3 = vec3(-1.0, -1.0, -1.0).normalize_or_zero();
     let light_color: Vec3 = LIGHT_FACTOR * 1.0 * vec3(NON_BLUE * 0.406, NON_BLUE * 0.723, 1.0);
@@ -293,7 +294,6 @@ fn main() {
     let mut enemy_system = EnemySystem::new(MONSTER_Y);
     let mut muzzle_flash = MuzzleFlash::new(unit_square_quad);
     let mut bullet_store = BulletStore::new(unit_square_quad);
-
 
     let player = state.player.clone();
     state.player.borrow_mut().set_animation(&Rc::from("forward"), 4);
@@ -422,10 +422,7 @@ fn main() {
 
         let light_projection = Mat4::orthographic_rh_gl(-ortho_size, ortho_size, -ortho_size, ortho_size, near_plane, far_plane);
 
-        let light_view = Mat4::look_at_rh(
-            player_position - 20.0 * player_light_dir,
-            player_position,
-            vec3(0.0, 1.0, 0.0));
+        let light_view = Mat4::look_at_rh(player_position - 20.0 * player_light_dir, player_position, vec3(0.0, 1.0, 0.0));
 
         let light_space_matrix = light_projection * light_view;
 
@@ -537,7 +534,6 @@ fn main() {
         state.burn_marks.draw_marks(&basic_texture_shader, &projection_view, state.delta_time);
         bullet_store.draw_bullet_impacts(&sprite_shader, &projection_view);
         bullet_store.draw_bullets(&instanced_texture_shader, &projection_view);
-
 
         // // blur
         // unsafe {
@@ -677,12 +673,8 @@ fn handle_window_event(window: &mut glfw::Window, event: glfw::WindowEvent, stat
         }
         glfw::WindowEvent::CursorPos(xpos, ypos) => mouse_handler(state, xpos, ypos),
         glfw::WindowEvent::Scroll(xoffset, ysoffset) => scroll_handler(state, xoffset, ysoffset),
-        glfw::WindowEvent::MouseButton(MouseButton::Button1, Action::Press, _) => {
-            state.player.borrow_mut().is_trying_to_fire = true
-        }
-        glfw::WindowEvent::MouseButton(MouseButton::Button1, Action::Release, _) => {
-            state.player.borrow_mut().is_trying_to_fire = false
-        }
+        glfw::WindowEvent::MouseButton(MouseButton::Button1, Action::Press, _) => state.player.borrow_mut().is_trying_to_fire = true,
+        glfw::WindowEvent::MouseButton(MouseButton::Button1, Action::Release, _) => state.player.borrow_mut().is_trying_to_fire = false,
         _evt => {
             // println!("WindowEvent: {:?}", _evt);
         }
