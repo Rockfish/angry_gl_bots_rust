@@ -153,10 +153,9 @@ impl Player {
         // let point_vec = vec3(197.0, 76.143, -3.054);
         let point_vec = vec3(191.04, 79.231, -3.4651); // center of muzzle
 
-        let meshes = self.model.meshes.borrow();
         let animator = self.model.animator.borrow();
+        let gun_mesh = self.model.meshes.iter().find(|m| m.name.as_str() == "Gun").unwrap();
 
-        let gun_mesh = meshes.iter().find(|m| m.name.as_str() == "Gun").unwrap();
         let final_node_matrices = animator.final_node_matrices.borrow();
 
         let gun_transform = final_node_matrices.get(gun_mesh.id as usize).unwrap();
@@ -174,7 +173,7 @@ impl Player {
         }
     }
 
-    pub fn render(&mut self, shader: &Shader) {
+    pub fn render(&self, shader: &Shader) {
         self.model.render(shader);
     }
 

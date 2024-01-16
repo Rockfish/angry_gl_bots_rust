@@ -6,7 +6,8 @@ out vec4 FragColor;
 uniform sampler2D base_texture;
 uniform sampler2D emission_texture;
 uniform sampler2D bright_texture;
-uniform bool lagSystemOut;
+
+//uniform bool lagSystemOut;
 
 float CalcBrightness(vec3 col) {
   return (col.x + col.y + col.z) / (3 );
@@ -17,8 +18,11 @@ vec4 ScaleColor(float scale, vec4 color) {
 }
 
 void main() {
+
   FragColor = vec4(texture(base_texture, TexCoord).rgb + texture(emission_texture, TexCoord).rgb * 2.9, 1.0);
+
   vec3 rawBright = texture(bright_texture, TexCoord).rgb;
+
   if (CalcBrightness(rawBright) > 0.05) {
     float mult = 1.5;
     float additive = CalcBrightness(rawBright) > 0.3 ? 1.8 : 0.4;

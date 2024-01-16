@@ -44,7 +44,7 @@ pub struct BulletStore {
 }
 
 // const BULLET_SCALE: f32 = 0.3;
-const BULLET_SCALE: f32 = 0.5;
+const BULLET_SCALE: f32 = 0.3;
 const BULLET_LIFETIME: f32 = 1.0;
 // seconds
 const BULLET_SPEED: f32 = 15.0;

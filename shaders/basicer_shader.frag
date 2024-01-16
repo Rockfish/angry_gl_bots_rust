@@ -4,6 +4,7 @@ in vec2 TexCoord;
 out vec4 FragColor;
 
 uniform bool greyscale;
+
 uniform sampler2D tex;
 
 void main() {

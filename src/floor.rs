@@ -73,28 +73,18 @@ impl Floor {
         }
     }
 
-    pub fn draw(&self, shader: &Shader, projection_view: &Mat4, ambient_color: &Vec3) {
-        //}, light_space_matrix: Option<Mat4>) {
+    pub fn draw(&self, shader: &Shader, projection_view: &Mat4) {
         shader.use_shader();
 
         bind_texture(&shader, 0, "texture_diffuse", &self.texture_floor_diffuse);
         bind_texture(&shader, 1, "texture_normal", &self.texture_floor_normal);
         bind_texture(&shader, 2, "texture_spec", &self.texture_floor_spec);
-        // bind_texture(&shader, 3, "shadow_map", &self.texture_shadow_map);
-
-        // shader.setBool("useLight", light_space_matrix.is_some());
-        // shader.setBool("useSpec", light_space_matrix.is_some());
-        // shader.setVec3("pointLight.worldPos", muzzleWorldPos3);
-        // shader.setVec3("pointLight.color", muzzlePointLightColor);
 
         // angle floor
         let _model = Mat4::from_axis_angle(vec3(0.0, 1.0, 0.0), 45.0f32.to_radians());
 
         let model = Mat4::IDENTITY;
 
-        // shader.set_bool("useLight", false);
-        shader.set_vec3("ambient", ambient_color);
-        // shader.setVec3("viewPos", camera_pos);
         shader.set_mat4("PV", projection_view);
         shader.set_mat4("model", &model);
 
