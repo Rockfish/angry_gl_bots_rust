@@ -229,10 +229,10 @@ fn main() {
     // Framebuffers
 
     let depth_map_fbo = create_depth_map_fbo();
-    let emissions_fbo = create_emission_fbo(VIEW_PORT_WIDTH, VIEW_PORT_HEIGHT);
-    let scene_fbo = create_scene_fbo(VIEW_PORT_WIDTH, VIEW_PORT_HEIGHT);
-    let horizontal_blur_fbo = create_horizontal_blur_fbo(VIEW_PORT_WIDTH, VIEW_PORT_HEIGHT);
-    let vertical_blur_fbo = create_vertical_blur_fbo(VIEW_PORT_WIDTH, VIEW_PORT_HEIGHT);
+    let mut emissions_fbo = create_emission_fbo(VIEW_PORT_WIDTH, VIEW_PORT_HEIGHT);
+    let mut scene_fbo = create_scene_fbo(VIEW_PORT_WIDTH, VIEW_PORT_HEIGHT);
+    let mut horizontal_blur_fbo = create_horizontal_blur_fbo(VIEW_PORT_WIDTH, VIEW_PORT_HEIGHT);
+    let mut vertical_blur_fbo = create_vertical_blur_fbo(VIEW_PORT_WIDTH, VIEW_PORT_HEIGHT);
 
     unsafe {
         gl::ActiveTexture(gl::TEXTURE0 + scene_fbo.texture_id);
@@ -331,8 +331,15 @@ fn main() {
 
     let mut quad_vao: GLuint = 0;
 
+    let mut viewport_width = state.viewport_width;
+    let mut viewport_height = state.viewport_height;
+
+    let clock = quanta::Clock::new();
+
     while !window.should_close() {
         // sleep(Duration::from_millis(500));
+
+        let frame_start = clock.now();
 
         let current_time = glfw.get_time() as f32;
         if state.run {
@@ -356,6 +363,18 @@ fn main() {
             gl::ClearColor(0.0, 0.02, 0.25, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         }
+
+        if viewport_width != state.viewport_width || viewport_height != state.viewport_height {
+            viewport_width = state.viewport_width;
+            viewport_height = state.viewport_height;
+
+            emissions_fbo = create_emission_fbo(viewport_width as i32, viewport_height as i32);
+            scene_fbo = create_scene_fbo(viewport_width as i32, viewport_height as i32);
+            horizontal_blur_fbo = create_horizontal_blur_fbo(viewport_width as i32, viewport_height as i32);
+            vertical_blur_fbo = create_vertical_blur_fbo(viewport_width as i32, viewport_height as i32);
+        }
+
+        // info!("process input complete: {:?}", &frame_start);
 
         state.game_camera.position = player.borrow().position + camera_follow_vec.clone();
         let game_view = Mat4::look_at_rh(state.game_camera.position, player.borrow().position, state.game_camera.up);
@@ -418,7 +437,7 @@ fn main() {
         let muzzle_transform = player.borrow().get_muzzle_position(&player_transform);
 
         if player.borrow().is_alive && player.borrow().is_trying_to_fire && (player.borrow().last_fire_time + FIRE_INTERVAL) < state.frame_time {
-            bullet_store.create_bullets(dx, dz, &muzzle_transform, 10); //SPREAD_AMOUNT);
+            bullet_store.create_bullets(dx, dz, &muzzle_transform, SPREAD_AMOUNT);
             player.borrow_mut().last_fire_time = state.frame_time;
             muzzle_flash.add_flash();
 
@@ -439,9 +458,6 @@ fn main() {
         let shadow_texture_unit = 10;
         let mut use_point_light = false;
         let mut muzzle_world_position = Vec3::default();
-
-        let viewport_width = state.viewport_width * state.window_scale.0;
-        let viewport_height = state.viewport_height * state.window_scale.0;
 
         if muzzle_flash.muzzle_flash_sprites_age.len() > 0 {
             let min_age = muzzle_flash.get_min_age();
@@ -717,6 +733,11 @@ fn main() {
 
         buffer_ready = true;
         window.swap_buffers();
+
+        let elapsed = frame_start.elapsed();
+        let frames_per_second = 1000_u128 / elapsed.as_millis();
+
+        info!("frame completed. Elapsed: {:?}  Frames per second: {:?}", &elapsed, frames_per_second);
     }
 }
 

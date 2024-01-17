@@ -1,7 +1,7 @@
 
 # Angry GL Bots Rust
 
-Port of the cpp project [AngryGL](https://github.com/ntcaston/AngryGL) to Rust. Which is an OpenGL clone of the [Unity Angry Bots ECS sample project](https://github.com/UnityTechnologies/AngryBots_ECS)
+This is a port of the cpp project [AngryGL](https://github.com/ntcaston/AngryGL) to Rust. Which is itself an OpenGL/C++ reimplementation of the [Unity Angry Bots ECS sample project](https://github.com/UnityTechnologies/AngryBots_ECS)
 
 ## Dependencies
 

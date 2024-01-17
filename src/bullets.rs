@@ -34,7 +34,7 @@ pub struct BulletStore {
     all_bullet_directions: Vec<Vec3>,
     // thread_pool
     bullet_vao: GLuint,
-    instance_vbo: GLuint,
+    rotation_vbo: GLuint,
     offset_vbo: GLuint,
     bullet_groups: Vec<BulletGroup>,
     bullet_texture: Texture,
@@ -114,11 +114,11 @@ impl BulletStore {
     pub fn new(unit_square_vao: i32) -> Self {
         // initialize_buffer_and_create
         let mut bullet_vao: GLuint = 0;
-        let mut bullet_vbo: GLuint = 0;
-        let mut bullet_ebo: GLuint = 0;
+        let mut bullet_vertices_vbo: GLuint = 0;
+        let mut bullet_indices_ebo: GLuint = 0;
 
-        let mut instance_vbo: GLuint = 0;
-        let mut offset_vbo: GLuint = 0;
+        let mut instance_rotation_vbo: GLuint = 0;
+        let mut instance_offset_vbo: GLuint = 0;
 
         let texture_config = TextureConfig {
             flip_v: false,
@@ -139,11 +139,11 @@ impl BulletStore {
         unsafe {
             gl::GenVertexArrays(1, &mut bullet_vao);
 
-            gl::GenBuffers(1, &mut bullet_vbo);
-            gl::GenBuffers(1, &mut bullet_ebo);
+            gl::GenBuffers(1, &mut bullet_vertices_vbo);
+            gl::GenBuffers(1, &mut bullet_indices_ebo);
 
             gl::BindVertexArray(bullet_vao);
-            gl::BindBuffer(gl::ARRAY_BUFFER, bullet_vbo);
+            gl::BindBuffer(gl::ARRAY_BUFFER, bullet_vertices_vbo);
 
             // vertices data
             gl::BufferData(
@@ -154,7 +154,7 @@ impl BulletStore {
             );
 
             // indices data
-            gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, bullet_ebo);
+            gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, bullet_indices_ebo);
             gl::BufferData(
                 gl::ELEMENT_ARRAY_BUFFER,
                 (indices.len() * SIZE_OF_FLOAT) as GLsizeiptr,
@@ -162,7 +162,7 @@ impl BulletStore {
                 gl::STATIC_DRAW,
             );
 
-            // location 0: positions
+            // location 0: vertex positions
             gl::EnableVertexAttribArray(0);
             gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, std::ptr::null::<GLvoid>());
 
@@ -170,23 +170,25 @@ impl BulletStore {
             gl::EnableVertexAttribArray(1);
             gl::VertexAttribPointer(1, 2, gl::FLOAT, gl::FALSE, (5 * SIZE_OF_FLOAT) as GLsizei, (3 * SIZE_OF_FLOAT) as *const GLvoid);
 
-            // instance vbo
-            gl::GenBuffers(1, &mut instance_vbo);
-            gl::BindBuffer(gl::ARRAY_BUFFER, instance_vbo);
+            // Per instance data
 
-            // location: 2: rotations
+            // per instance rotation vbo
+            gl::GenBuffers(1, &mut instance_rotation_vbo);
+            gl::BindBuffer(gl::ARRAY_BUFFER, instance_rotation_vbo);
+
+            // location: 2: bullet rotations
             gl::EnableVertexAttribArray(2);
             gl::VertexAttribPointer(2, 4, gl::FLOAT, gl::FALSE, SIZE_OF_QUAT as GLsizei, std::ptr::null::<GLvoid>());
-            gl::VertexAttribDivisor(2, 1);
+            gl::VertexAttribDivisor(2, 1); // one rotation per bullet instance
 
-            // offset vbo
-            gl::GenBuffers(1, &mut offset_vbo);
-            gl::BindBuffer(gl::ARRAY_BUFFER, offset_vbo);
+            // per instance position offset vbo
+            gl::GenBuffers(1, &mut instance_offset_vbo);
+            gl::BindBuffer(gl::ARRAY_BUFFER, instance_offset_vbo);
 
-            // location: 3: position offsets
+            // location: 3: bullet position offsets
             gl::EnableVertexAttribArray(3);
             gl::VertexAttribPointer(3, 3, gl::FLOAT, gl::FALSE, SIZE_OF_VEC3 as GLsizei, std::ptr::null::<GLvoid>());
-            gl::VertexAttribDivisor(3, 1);
+            gl::VertexAttribDivisor(3, 1); // one offset per bullet instance
         }
 
         let texture_impact_sprite_sheet = Texture::new("angrygl_assets/bullet/impact_spritesheet_with_00.png", &texture_config).unwrap();
@@ -197,8 +199,8 @@ impl BulletStore {
             all_bullet_quats: Default::default(),
             all_bullet_directions: Default::default(),
             bullet_vao,
-            instance_vbo,
-            offset_vbo,
+            rotation_vbo: instance_rotation_vbo,
+            offset_vbo: instance_offset_vbo,
             bullet_groups: vec![],
             bullet_texture,
             bullet_impact_spritesheet,
@@ -374,6 +376,7 @@ impl BulletStore {
                 sheet.age += &state.delta_time;
             }
             let sprite_duration = self.bullet_impact_spritesheet.num_columns as f32 * self.bullet_impact_spritesheet.time_per_sprite;
+
             self.bullet_impact_sprites.retain(|sprite| sprite.age < sprite_duration);
         }
 
@@ -422,7 +425,7 @@ impl BulletStore {
         unsafe {
             gl::BindVertexArray(self.bullet_vao);
 
-            gl::BindBuffer(gl::ARRAY_BUFFER, self.instance_vbo);
+            gl::BindBuffer(gl::ARRAY_BUFFER, self.rotation_vbo);
 
             gl::BufferData(
                 gl::ARRAY_BUFFER,

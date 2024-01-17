@@ -2,8 +2,8 @@
 layout (location = 0) in vec3 inPos;
 layout (location = 1) in vec2 inTexCoord;
 
-layout (location = 2) in vec4 rotQuat;
-layout (location = 3) in vec3 posOffset;
+layout (location = 2) in vec4 rotationQuat;
+layout (location = 3) in vec3 positionOffset;
 
 out vec2 TexCoord;
 
@@ -49,9 +49,10 @@ vec3 rotateByQuat(vec3 v, vec4 q_orig) {
 
 
 void main() {
-    vec3 rotatedInPos = rotateByQuat(inPos, rotQuat);
+    // rotate bullet sprite to face in the direction of travel
+    vec3 rotatedInPos = rotateByQuat(inPos, rotationQuat);
 
-    gl_Position = PV * vec4(rotatedInPos + posOffset, 1.0);
+    gl_Position = PV * vec4(rotatedInPos + positionOffset, 1.0);
 
     TexCoord = inTexCoord;
 }
