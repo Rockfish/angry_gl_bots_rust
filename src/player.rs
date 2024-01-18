@@ -10,7 +10,7 @@ use std::ops::Deref;
 use std::rc::Rc;
 use std::time::Duration;
 
-const PLAYER_SPEED: f32 = 2.0;
+const PLAYER_SPEED: f32 = 5.0;
 // 1.5;
 const ANIM_TRANSITION_TIME: f32 = 0.2;
 

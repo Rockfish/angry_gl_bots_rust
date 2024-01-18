@@ -1,7 +1,6 @@
+use crate::BLUR_SCALE;
 use small_gl_core::gl::{GLfloat, GLint, GLuint, GLvoid};
 use small_gl_core::{gl, null};
-
-pub const BLUR_SCALE: i32 = 1; // 2.0;
 
 pub const SHADOW_WIDTH: i32 = 6 * 1024;
 pub const SHADOW_HEIGHT: i32 = 6 * 1024;

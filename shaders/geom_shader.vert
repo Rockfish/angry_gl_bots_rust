@@ -8,7 +8,7 @@ layout(location = 4) in vec3 bitangent;
 layout(location = 5) in ivec4 boneIds;
 layout(location = 6) in vec4 weights;
 
-out vec2 TexCoord;
+out vec2 TexCoords;
 
 // animation
 const int MAX_BONES = 100;
@@ -48,6 +48,6 @@ void main() {
 
   gl_Position = projectionView * model * final_position;
 
-  TexCoord = inTex;
+  TexCoords = inTex;
 }
 

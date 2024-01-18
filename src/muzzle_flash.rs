@@ -15,7 +15,7 @@ impl MuzzleFlash {
     pub fn new(unit_square_vao: i32) -> Self {
         let texture_config = TextureConfig::new().set_wrap(TextureWrap::Repeat);
         let texture_muzzle_flash_sprite_sheet = Texture::new("angrygl_assets/Player/muzzle_spritesheet.png", &texture_config).unwrap();
-        let muzzle_flash_impact_spritesheet = SpriteSheet::new(texture_muzzle_flash_sprite_sheet, 6, 0.05);
+        let muzzle_flash_impact_spritesheet = SpriteSheet::new(texture_muzzle_flash_sprite_sheet, 6, 0.03);
 
         MuzzleFlash {
             unit_square_vao,
