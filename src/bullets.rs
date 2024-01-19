@@ -1,4 +1,4 @@
-use crate::aabb::AABB;
+use crate::aabb::Aabb;
 use crate::capsule::Capsule;
 use crate::enemy::{Enemy, ENEMY_COLLIDER};
 use crate::geom::{distance_between_line_segments, oriented_angle};
@@ -9,7 +9,7 @@ use small_gl_core::gl::{GLsizei, GLsizeiptr, GLuint, GLvoid};
 use small_gl_core::shader::Shader;
 use small_gl_core::texture::{bind_texture, Texture, TextureConfig, TextureFilter, TextureType, TextureWrap};
 use small_gl_core::utils::random_clamped;
-use small_gl_core::{gl, SIZE_OF_FLOAT, SIZE_OF_QUAT, SIZE_OF_VEC3};
+use small_gl_core::{gl, NULL, SIZE_OF_FLOAT, SIZE_OF_QUAT, SIZE_OF_VEC3};
 use std::f32::consts::PI;
 
 pub struct BulletGroup {
@@ -287,7 +287,7 @@ impl BulletStore {
     pub fn update_bullets(&mut self, state: &mut State) {
         //}, bulletImpactSprites: &mut Vec<SpriteSheetSprite>) {
 
-        let use_aabb = state.enemies.len() > 0;
+        let use_aabb = !state.enemies.is_empty();
         let num_sub_groups = if use_aabb { 9 } else { 1 };
 
         let delta_position_magnitude = state.delta_time * BULLET_SPEED;
@@ -321,7 +321,7 @@ impl BulletStore {
                         self.all_bullet_positions[bullet_index as usize] += self.all_bullet_directions[bullet_index as usize] * delta_position_magnitude;
                     }
 
-                    let mut subgroup_bound_box = AABB::new();
+                    let mut subgroup_bound_box = Aabb::new();
 
                     if use_aabb {
                         for bullet_index in bullet_start..bullet_end {
@@ -371,7 +371,7 @@ impl BulletStore {
             }
         }
 
-        if self.bullet_impact_sprites.len() > 0 {
+        if !self.bullet_impact_sprites.is_empty() {
             for sheet in self.bullet_impact_sprites.iter_mut() {
                 sheet.age += &state.delta_time;
             }
@@ -447,7 +447,7 @@ impl BulletStore {
                 gl::TRIANGLES,
                 12, // 6,
                 gl::UNSIGNED_INT,
-                0 as *const GLvoid,
+                NULL,
                 self.all_bullet_positions.len() as GLsizei,
             );
         }
@@ -506,7 +506,7 @@ impl BulletStore {
 
 fn bullet_collides_with_enemy(position: &Vec3, direction: &Vec3, enemy: &Enemy) -> bool {
     if position.distance(enemy.position) > BULLET_ENEMY_MAX_COLLISION_DIST {
-        false;
+        return false;
     }
 
     let a0 = *position - *direction * (BULLET_COLLIDER.height / 2.0);
@@ -521,7 +521,7 @@ fn bullet_collides_with_enemy(position: &Vec3, direction: &Vec3, enemy: &Enemy) 
 
 pub fn rotate_by_quat(v: &Vec3, q: &Quat) -> Vec3 {
     let q_prime = Quat::from_xyzw(q.w, -q.x, -q.y, -q.z);
-    return partial_hamilton_product(&partial_hamilton_product2(&q, &v), &q_prime);
+    partial_hamilton_product(&partial_hamilton_product2(q, v), &q_prime)
 }
 
 pub fn partial_hamilton_product2(quat: &Quat, vec: &Vec3 /*partial*/) -> Quat {
@@ -586,7 +586,7 @@ mod tests {
             // direction angle with respect to the canonical direction
             let theta = oriented_angle(x, y, rot_vec) * -1.0;
 
-            println!("angle: {}  direction: {:?}   theta: {:?}", angle, normalized_direction, angle);
+            println!("angle: {}  direction: {:?}   theta: {:?}", angle, normalized_direction, theta);
         }
     }
 }

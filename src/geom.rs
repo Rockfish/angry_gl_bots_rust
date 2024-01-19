@@ -10,7 +10,7 @@ pub fn distance_between_point_and_line_segment(point: &Vec3, a: &Vec3, b: &Vec3)
     if bp.dot(ab) >= 0.0 {
         return bp.length();
     }
-    return ab.cross(ap).length() / ab.length();
+    ab.cross(ap).length() / ab.length()
 }
 
 pub fn distance_between_line_segments(a0: &Vec3, a1: &Vec3, b0: &Vec3, b1: &Vec3) -> f32 {
@@ -98,7 +98,7 @@ pub fn distance_between_line_segments(a0: &Vec3, a1: &Vec3, b0: &Vec3, b1: &Vec3
         p_a = *a0 + (a * dot);
     }
 
-    return (p_a - p_b).length();
+    (p_a - p_b).length()
 }
 
 /// See https://github.com/icaven/glm/blob/master/glm/gtx/vector_angle.inl

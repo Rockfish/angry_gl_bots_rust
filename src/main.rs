@@ -38,24 +38,19 @@ use crate::quads::{create_more_obnoxious_quad_vao, create_obnoxious_quad_vao, cr
 use glam::{vec2, vec3, vec4, Mat4, Vec3};
 use glfw::JoystickId::Joystick1;
 use glfw::{Action, Context, Key, MouseButton};
-use log::{error, LevelFilter};
-use rodio::{Decoder, OutputStream, Sink, Source};
+use log::error;
 use small_gl_core::camera::{Camera, CameraMovement};
 use small_gl_core::gl;
-use small_gl_core::gl::{GLsizei, GLuint, GLvoid};
+use small_gl_core::gl::{GLsizei, GLuint};
 use small_gl_core::math::{get_world_ray_from_mouse, ray_plane_intersection};
 use small_gl_core::model::ModelBuilder;
 use small_gl_core::shader::Shader;
 use std::cell::RefCell;
 use std::f32::consts::PI;
-use std::fs::File;
-use std::io::{BufReader, Cursor, Read};
 use std::rc::Rc;
 // use std::thread::sleep;
-use crate::sound_system::{AudioSource, SoundSystem};
+use crate::sound_system::SoundSystem;
 use small_gl_core::hash_map::HashSet;
-use small_gl_core::texture::{bind_texture, TextureType};
-use tracing::{event, span, Level};
 
 extern crate pretty_env_logger;
 #[macro_use]
@@ -188,8 +183,8 @@ fn main() {
     let instanced_texture_shader = Shader::new("shaders/instanced_texture_shader.vert", "shaders/basic_texture_shader.frag").unwrap();
     let blur_shader = Shader::new("shaders/basicer_shader.vert", "shaders/blur_shader.frag").unwrap();
     let scene_draw_shader = Shader::new("shaders/basicer_shader.vert", "shaders/texture_merge_shader.frag").unwrap();
-    let depth_shader = Shader::new("shaders/depth_shader.vert", "shaders/depth_shader.frag").unwrap();
-    let debug_depth_shader = Shader::new("shaders/debug_depth_quad.vert", "shaders/debug_depth_quad.frag").unwrap();
+    let _depth_shader = Shader::new("shaders/depth_shader.vert", "shaders/depth_shader.frag").unwrap();
+    let _debug_depth_shader = Shader::new("shaders/debug_depth_quad.vert", "shaders/debug_depth_quad.frag").unwrap();
 
     // --- Lighting ---
 
@@ -392,7 +387,7 @@ fn main() {
             );
         }
 
-        state.game_camera.position = player.borrow().position + camera_follow_vec.clone();
+        state.game_camera.position = player.borrow().position + camera_follow_vec;
         let game_view = Mat4::look_at_rh(state.game_camera.position, player.borrow().position, state.game_camera.up);
 
         let (projection, camera_view) = match state.active_camera {
@@ -474,7 +469,7 @@ fn main() {
         let mut use_point_light = false;
         let mut muzzle_world_position = Vec3::default();
 
-        if muzzle_flash.muzzle_flash_sprites_age.len() > 0 {
+        if !muzzle_flash.muzzle_flash_sprites_age.is_empty() {
             let min_age = muzzle_flash.get_min_age();
             let muzzle_world_position_vec4 = muzzle_transform * vec4(0.0, 0.0, 0.0, 1.0);
 
@@ -655,7 +650,7 @@ fn main() {
                 // gl::Disable(gl::DEPTH_TEST);
 
                 // view port for blur effect
-                gl::Viewport(0, 0, (viewport_width / BLUR_SCALE), (viewport_height / BLUR_SCALE));
+                gl::Viewport(0, 0, viewport_width / BLUR_SCALE, viewport_height / BLUR_SCALE);
 
                 // Draw horizontal blur
                 gl::BindFramebuffer(gl::FRAMEBUFFER, horizontal_blur_fbo.framebuffer_id);
@@ -774,8 +769,8 @@ fn handle_window_event(window: &mut glfw::Window, event: glfw::WindowEvent, stat
             state.run = !state.run;
         }
         glfw::WindowEvent::Key(Key::T, _, Action::Press, _) => {
-            let width = state.viewport_width as i32;
-            let height = state.viewport_height as i32;
+            let width = state.viewport_width;
+            let height = state.viewport_height;
             set_view_port(state, width, height)
         }
         glfw::WindowEvent::Key(Key::W, _, action, modifier) => {

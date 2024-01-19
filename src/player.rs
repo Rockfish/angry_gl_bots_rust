@@ -144,7 +144,7 @@ impl Player {
         if !self.animation_name.eq(animation_name) {
             self.animation_name = animation_name.clone();
             self.model
-                .play_clip_with_transition(&self.animations.get(&self.animation_name.deref()), Duration::from_secs(seconds as u64));
+                .play_clip_with_transition(self.animations.get(self.animation_name.deref()), Duration::from_secs(seconds as u64));
         }
     }
 
@@ -162,9 +162,8 @@ impl Player {
 
         let muzzle = *gun_transform * Mat4::from_translation(point_vec);
 
-        let muzzle_transform = *player_model_transform * muzzle;
-
-        muzzle_transform
+        // muzzle_transform
+        *player_model_transform * muzzle
     }
 
     pub fn set_player_death_time(&mut self, time: f32) {
@@ -221,16 +220,15 @@ impl Player {
         self.anim_weights.prev_back_weight = max(self.anim_weights.prev_back_weight, back_weight);
         self.anim_weights.prev_left_weight = max(self.anim_weights.prev_left_weight, left_weight);
 
-        let weighted_animations = [
+        // weighted animations
+        [
             WeightedAnimation::new(idle_weight, 55.0, 130.0, 0.0, 0.0),
             WeightedAnimation::new(forward_weight, 134.0, 154.0, 0.0, 0.0),
             WeightedAnimation::new(back_weight, 159.0, 179.0, 10.0, 0.0),
             WeightedAnimation::new(right_weight, 184.0, 204.0, 10.0, 0.0),
             WeightedAnimation::new(left_weight, 209.0, 229.0, 0.0, 0.0),
             WeightedAnimation::new(dead_weight, 234.0, 293.0, 0.0, self.death_time),
-        ];
-
-        weighted_animations
+        ]
     }
 }
 
@@ -242,5 +240,5 @@ fn clamp0(value: f32) -> f32 {
 }
 
 fn max(a: f32, b: f32) -> f32 {
-    return if a > b { a } else { b };
+    if a > b { a } else { b }
 }

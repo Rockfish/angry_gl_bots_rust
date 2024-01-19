@@ -1,4 +1,4 @@
-use glam::{vec3, Mat4, Vec3};
+use glam::{vec3, Mat4};
 use small_gl_core::gl::{GLsizei, GLsizeiptr, GLuint, GLvoid};
 use small_gl_core::shader::Shader;
 use small_gl_core::texture::{bind_texture, Texture, TextureConfig, TextureFilter, TextureType, TextureWrap};
@@ -76,9 +76,9 @@ impl Floor {
     pub fn draw(&self, shader: &Shader, projection_view: &Mat4) {
         shader.use_shader();
 
-        bind_texture(&shader, 0, "texture_diffuse", &self.texture_floor_diffuse);
-        bind_texture(&shader, 1, "texture_normal", &self.texture_floor_normal);
-        bind_texture(&shader, 2, "texture_spec", &self.texture_floor_spec);
+        bind_texture(shader, 0, "texture_diffuse", &self.texture_floor_diffuse);
+        bind_texture(shader, 1, "texture_normal", &self.texture_floor_normal);
+        bind_texture(shader, 2, "texture_spec", &self.texture_floor_spec);
 
         // angle floor
         let _model = Mat4::from_axis_angle(vec3(0.0, 1.0, 0.0), 45.0f32.to_radians());

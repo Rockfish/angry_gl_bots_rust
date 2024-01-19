@@ -1,8 +1,10 @@
-#[allow(dead_code)]
-use glam::{vec2, Vec2};
-use std::f32::consts::{PI, TAU};
+#![allow(dead_code)]
+#![allow(unused_assignments)]
+#![allow(unused_variables)]
 
-#[allow(dead_code)]
+use glam::{vec2, Vec2};
+use std::f32::consts::PI;
+
 #[derive(Debug)]
 struct Weights {
     idle: f32,

@@ -25,7 +25,7 @@ impl MuzzleFlash {
     }
 
     pub fn update(&mut self, delta_time: f32) {
-        if &self.muzzle_flash_sprites_age.len() > &0 {
+        if !self.muzzle_flash_sprites_age.is_empty() {
             for i in 0..self.muzzle_flash_sprites_age.len() {
                 self.muzzle_flash_sprites_age[i] += delta_time;
             }
@@ -52,7 +52,7 @@ impl MuzzleFlash {
         }
 
         sprite_shader.use_shader();
-        sprite_shader.set_mat4("PV", &projection_view);
+        sprite_shader.set_mat4("PV", projection_view);
 
         unsafe {
             gl::Enable(gl::BLEND);

@@ -1,6 +1,6 @@
 use glam::{vec3, Vec3};
 
-pub struct AABB {
+pub struct Aabb {
     pub x_min: f32,
     pub x_max: f32,
     pub y_min: f32,
@@ -10,9 +10,9 @@ pub struct AABB {
     is_initialize: bool,
 }
 
-impl AABB {
+impl Aabb {
     pub fn new() -> Self {
-        AABB {
+        Aabb {
             x_min: f32::MAX,
             x_max: f32::MIN,
             y_min: f32::MAX,
@@ -56,7 +56,7 @@ impl AABB {
 }
 
 #[rustfmt::skip]
-pub fn aabbs_intersect(a: &AABB, b: &AABB) -> bool {
+pub fn aabbs_intersect(a: &Aabb, b: &Aabb) -> bool {
     a.contains_point(vec3(b.x_min, b.y_min, b.z_min))
         || a.contains_point(vec3(b.x_min, b.y_min, b.z_max))
         || a.contains_point(vec3(b.x_min, b.y_max, b.z_min))

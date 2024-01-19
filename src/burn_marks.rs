@@ -42,7 +42,7 @@ impl BurnMarks {
         }
 
         shader.use_shader();
-        shader.set_mat4("PV", &projection_view);
+        shader.set_mat4("PV", projection_view);
 
         bind_texture(shader, 0, "texture_diffuse", &self.mark_texture);
         bind_texture(shader, 1, "texture_normal", &self.mark_texture);
