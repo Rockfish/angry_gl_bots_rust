@@ -2,7 +2,7 @@ use crate::capsule::Capsule;
 use crate::geom::distance_between_point_and_line_segment;
 use crate::{State, MONSTER_SPEED, MONSTER_Y, PLAYER_COLLISION_RADIUS};
 use glam::{vec2, vec3, Mat4, Vec3};
-use small_gl_core::model::Model;
+use small_gl_core::model::{Model, ModelBuilder};
 use small_gl_core::shader::Shader;
 use small_gl_core::utils::rand_float;
 use std::f32::consts::PI;
@@ -28,13 +28,16 @@ const SPAWN_RADIUS: f32 = 10.0; // from player
 pub struct EnemySystem {
     count_down: f32,
     monster_y: f32,
+    enemy_model: Model,
 }
 
 impl EnemySystem {
-    pub fn new(monster_y: f32) -> Self {
+    pub fn new() -> Self {
+        let enemy_model = ModelBuilder::new("enemy", "assets/Models/Eeldog/EelDog.FBX").build().unwrap();
         EnemySystem {
             count_down: ENEMY_SPAWN_INTERVAL,
-            monster_y,
+            monster_y: MONSTER_Y,
+            enemy_model,
         }
     }
 
@@ -80,7 +83,7 @@ impl EnemySystem {
         }
     }
 
-    pub fn draw_enemies(&self, enemy_model: &Model, shader: &Shader, state: &mut State) {
+    pub fn draw_enemies(&self, shader: &Shader, state: &mut State) {
         shader.use_shader();
         shader.set_vec3("nosePos", &vec3(1.0, MONSTER_Y, -2.0));
         shader.set_float("time", state.frame_time);
@@ -103,7 +106,7 @@ impl EnemySystem {
             shader.set_mat4("aimRot", &rot_only);
             shader.set_mat4("model", &model_transform);
 
-            enemy_model.render(shader);
+            self.enemy_model.render(shader);
         }
     }
 }

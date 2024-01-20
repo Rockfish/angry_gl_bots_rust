@@ -43,7 +43,6 @@ use small_gl_core::camera::{Camera, CameraMovement};
 use small_gl_core::gl;
 use small_gl_core::gl::{GLsizei, GLuint};
 use small_gl_core::math::{get_world_ray_from_mouse, ray_plane_intersection};
-use small_gl_core::model::ModelBuilder;
 use small_gl_core::shader::Shader;
 use std::cell::RefCell;
 use std::f32::consts::PI;
@@ -170,25 +169,29 @@ fn main() {
 
     // --- Shaders ---
 
-    let basicer_shader = Shader::new("shaders/basicer_shader.vert", "shaders/basicer_shader.frag").unwrap();
-
+    // player, enemies, floor
     let player_shader = Shader::new("shaders/player_shader.vert", "shaders/player_shader.frag").unwrap();
     let player_emissive_shader = Shader::new("shaders/player_shader.vert", "shaders/texture_emissive_shader.frag").unwrap();
-    // let texture_emissive_shader = Shader::new("shaders/geom_shader.vert", "shaders/texture_emissive_shader.frag").unwrap();
-
     let wiggly_shader = Shader::new("shaders/wiggly_shader.vert", "shaders/player_shader.frag").unwrap();
     let floor_shader = Shader::new("shaders/basic_texture_shader.vert", "shaders/floor_shader.frag").unwrap();
-    let basic_texture_shader = Shader::new("shaders/basic_texture_shader.vert", "shaders/basic_texture_shader.frag").unwrap();
-    let sprite_shader = Shader::new("shaders/geom_shader2.vert", "shaders/sprite_shader.frag").unwrap();
+
+    // bullets, muzzle flash, burn marks
     let instanced_texture_shader = Shader::new("shaders/instanced_texture_shader.vert", "shaders/basic_texture_shader.frag").unwrap();
+    let sprite_shader = Shader::new("shaders/geom_shader2.vert", "shaders/sprite_shader.frag").unwrap();
+    let basic_texture_shader = Shader::new("shaders/basic_texture_shader.vert", "shaders/basic_texture_shader.frag").unwrap();
+
+    // blur and scene
     let blur_shader = Shader::new("shaders/basicer_shader.vert", "shaders/blur_shader.frag").unwrap();
     let scene_draw_shader = Shader::new("shaders/basicer_shader.vert", "shaders/texture_merge_shader.frag").unwrap();
+
+    // for debug
+    let basicer_shader = Shader::new("shaders/basicer_shader.vert", "shaders/basicer_shader.frag").unwrap();
     let _depth_shader = Shader::new("shaders/depth_shader.vert", "shaders/depth_shader.frag").unwrap();
     let _debug_depth_shader = Shader::new("shaders/debug_depth_quad.vert", "shaders/debug_depth_quad.frag").unwrap();
 
     // --- Lighting ---
 
-    let light_dir: Vec3 = vec3(-0.8, 0.0, -1.0).normalize_or_zero(); // was for floor only. not sure why.
+    let light_dir: Vec3 = vec3(-0.8, 0.0, -1.0).normalize_or_zero();
     let player_light_dir: Vec3 = vec3(-1.0, -1.0, -1.0).normalize_or_zero();
     let muzzle_point_light_color = vec3(1.0, 0.2, 0.0);
 
@@ -197,7 +200,6 @@ fn main() {
 
     let floor_light_color: Vec3 = FLOOR_LIGHT_FACTOR * 1.0 * vec3(FLOOR_NON_BLUE * 0.406, FLOOR_NON_BLUE * 0.723, 1.0);
     let floor_ambient_color: Vec3 = FLOOR_LIGHT_FACTOR * 0.50 * vec3(FLOOR_NON_BLUE * 0.7, FLOOR_NON_BLUE * 0.7, 0.7);
-    let shadow_texture_unit = 10;
 
     // --- view port values ---
 
@@ -234,14 +236,14 @@ fn main() {
     let game_camera = Camera::camera_vec3_up_yaw_pitch(
         vec3(0.0, 20.0, 80.0), // for xz world
         vec3(0.0, 1.0, 0.0),
-        -90.0, // seems camera starts by looking down the x-axis, so needs to turn left to see the plane
+        -90.0,
         -20.0,
     );
 
     let floating_camera = Camera::camera_vec3_up_yaw_pitch(
         vec3(0.0, 10.0, 20.0), // for xz world
         vec3(0.0, 1.0, 0.0),
-        -90.0, // seems camera starts by looking down the x-axis, so needs to turn left to see the plane
+        -90.0,
         -20.0,
     );
 
@@ -257,11 +259,10 @@ fn main() {
     info!("window scale: {:?}", window_scale);
 
     // Models and systems
-    let player = Player::new();
-    let enemy_model = ModelBuilder::new("enemy", "assets/Models/Eeldog/EelDog.FBX").build().unwrap();
-    let floor = Floor::new();
 
-    let mut enemy_system = EnemySystem::new(MONSTER_Y);
+    let player = Rc::new(RefCell::new(Player::new()));
+    let floor = Floor::new();
+    let mut enemies = EnemySystem::new();
     let mut muzzle_flash = MuzzleFlash::new(unit_square_quad);
     let mut bullet_store = BulletStore::new(unit_square_quad);
 
@@ -287,20 +288,21 @@ fn main() {
         first_mouse: true,
         mouse_x: scaled_width as f32 / 2.0,
         mouse_y: scaled_height as f32 / 2.0,
-        player: Rc::new(player.into()),
+        player: player.clone(),
         enemies: vec![],
         burn_marks: BurnMarks::new(unit_square_quad),
         sound_system: SoundSystem::new(),
     };
 
-    let player = state.player.clone();
-
     // Set fixed shader uniforms
+
+    let shadow_texture_unit = 10;
 
     player_shader.use_shader();
     player_shader.set_vec3("directionLight.dir", &player_light_dir);
     player_shader.set_vec3("directionLight.color", &light_color);
     player_shader.set_vec3("ambient", &ambient_color);
+
     player_shader.set_int("shadow_map", shadow_texture_unit as i32);
     player_shader.set_texture_unit(shadow_texture_unit, depth_map_fbo.texture_id);
 
@@ -308,6 +310,7 @@ fn main() {
     floor_shader.set_vec3("directionLight.dir", &light_dir);
     floor_shader.set_vec3("directionLight.color", &floor_light_color);
     floor_shader.set_vec3("ambient", &floor_ambient_color);
+
     floor_shader.set_int("shadow_map", shadow_texture_unit as i32);
     floor_shader.set_texture_unit(shadow_texture_unit, depth_map_fbo.texture_id);
 
@@ -318,26 +321,18 @@ fn main() {
 
     // --------------------------------
 
-    let clock = quanta::Clock::new();
-
     let use_framebuffers = true;
 
     let mut buffer_ready = false;
     let mut aim_theta = 0.0f32;
     let mut quad_vao: GLuint = 0;
 
-    // unsafe {
-    //     gl::ActiveTexture(gl::TEXTURE0 + scene_fbo.texture_id);
-    //     gl::Enable(gl::CULL_FACE);
-    //     gl::ClearColor(0.1, 0.1, 0.1, 1.0);
-    //     gl::Enable(gl::DEPTH_TEST);
-    //     gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
-    //
-    //     gl::ActiveTexture(gl::TEXTURE0);
-    //     gl::Enable(gl::DEPTH_TEST);
-    //     gl::Enable(gl::BLEND);
-    //     gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
-    // }
+    let emission_texture_unit = 0;
+    let horizontal_texture_unit = 1;
+    let vertical_texture_unit = 2;
+    let scene_texture_unit = 3;
+
+    let clock = quanta::Clock::new();
 
     info!("Assets loaded. Starting loop.");
 
@@ -459,8 +454,8 @@ fn main() {
         bullet_store.update_bullets(&mut state);
 
         if player.borrow().is_alive {
-            enemy_system.update(&mut state);
-            enemy_system.chase_player(&mut state);
+            enemies.update(&mut state);
+            enemies.chase_player(&mut state);
         }
 
         // Update Player
@@ -527,7 +522,7 @@ fn main() {
         wiggly_shader.set_mat4("lightSpaceMatrix", &light_space_matrix);
         wiggly_shader.set_bool("depth_mode", true);
 
-        enemy_system.draw_enemies(&enemy_model, &wiggly_shader, &mut state);
+        enemies.draw_enemies(&wiggly_shader, &mut state);
 
         // shadows end
 
@@ -548,18 +543,21 @@ fn main() {
             player.borrow_mut().render(&player_emissive_shader);
 
             // doesn't seem to do anything
-            // unsafe {
-            //     gl::ColorMask(gl::FALSE, gl::FALSE, gl::FALSE, gl::FALSE);
-            // }
+            // {
+            //     unsafe {
+            //         gl::ColorMask(gl::FALSE, gl::FALSE, gl::FALSE, gl::FALSE);
+            //     }
             //
-            // floor_shader.use_shader();
-            // floor_shader.set_bool("useLight", false);
-            // floor_shader.set_bool("useSpec", false);
+            //     floor_shader.use_shader();
+            //     floor_shader.set_bool("usePointLight", true);
+            //     floor_shader.set_bool("useLight", true);
+            //     floor_shader.set_bool("useSpec", true);
             //
-            // floor.draw(&floor_shader, &projection_view);
+            //     // floor.draw(&floor_shader, &projection_view);
             //
-            // unsafe {
-            //     gl::ColorMask(gl::TRUE, gl::TRUE, gl::TRUE, gl::TRUE);
+            //     unsafe {
+            //         gl::ColorMask(gl::TRUE, gl::TRUE, gl::TRUE, gl::TRUE);
+            //     }
             // }
 
             bullet_store.draw_bullets(&instanced_texture_shader, &projection_view);
@@ -635,7 +633,7 @@ fn main() {
         wiggly_shader.set_bool("useEmissive", false);
         wiggly_shader.set_bool("depth_mode", false);
 
-        enemy_system.draw_enemies(&enemy_model, &wiggly_shader, &mut state);
+        enemies.draw_enemies(&wiggly_shader, &mut state);
 
         state.burn_marks.draw_marks(&basic_texture_shader, &projection_view, state.delta_time);
         bullet_store.draw_bullet_impacts(&sprite_shader, &projection_view);
@@ -656,7 +654,6 @@ fn main() {
                 gl::BindFramebuffer(gl::FRAMEBUFFER, horizontal_blur_fbo.framebuffer_id);
                 gl::BindVertexArray(more_obnoxious_quad_vao as GLuint);
 
-                let emission_texture_unit = 0;
                 gl::ActiveTexture(gl::TEXTURE0 + emission_texture_unit as u32);
                 gl::BindTexture(gl::TEXTURE_2D, emissions_fbo.texture_id as GLuint);
 
@@ -670,7 +667,6 @@ fn main() {
                 gl::BindFramebuffer(gl::FRAMEBUFFER, vertical_blur_fbo.framebuffer_id);
                 gl::BindVertexArray(more_obnoxious_quad_vao as GLuint);
 
-                let horizontal_texture_unit = 1;
                 gl::ActiveTexture(gl::TEXTURE0 + horizontal_texture_unit as u32);
                 gl::BindTexture(gl::TEXTURE_2D, horizontal_blur_fbo.texture_id as GLuint);
 
@@ -685,9 +681,6 @@ fn main() {
 
                 gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
                 gl::BindVertexArray(more_obnoxious_quad_vao as GLuint);
-
-                let vertical_texture_unit = 2;
-                let scene_texture_unit = 3;
 
                 gl::ActiveTexture(gl::TEXTURE0 + vertical_texture_unit as u32);
                 gl::BindTexture(gl::TEXTURE_2D, vertical_blur_fbo.texture_id as GLuint);
@@ -815,7 +808,6 @@ fn handle_window_event(window: &mut glfw::Window, event: glfw::WindowEvent, stat
             // info!("WindowEvent: {:?}", _evt);
         }
     }
-
 }
 
 fn handle_key_press(state: &mut State, action: Action, key: Key) {

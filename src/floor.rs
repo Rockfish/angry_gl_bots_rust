@@ -10,13 +10,13 @@ const NUM_TILE_WRAPS: f32 = FLOOR_SIZE / TILE_SIZE;
 
 #[rustfmt::skip]
 const FLOOR_VERTICES: [f32; 30] = [
-    // Vertices                               // TexCoord
+    // Vertices                                // TexCoord
     -FLOOR_SIZE / 2.0, 0.0, -FLOOR_SIZE / 2.0, 0.0, 0.0,
-    -FLOOR_SIZE / 2.0, 0.0, FLOOR_SIZE / 2.0, NUM_TILE_WRAPS, 0.0,
-    FLOOR_SIZE / 2.0, 0.0, FLOOR_SIZE / 2.0, NUM_TILE_WRAPS, NUM_TILE_WRAPS,
+    -FLOOR_SIZE / 2.0, 0.0,  FLOOR_SIZE / 2.0, NUM_TILE_WRAPS, 0.0,
+     FLOOR_SIZE / 2.0, 0.0,  FLOOR_SIZE / 2.0, NUM_TILE_WRAPS, NUM_TILE_WRAPS,
     -FLOOR_SIZE / 2.0, 0.0, -FLOOR_SIZE / 2.0, 0.0, 0.0,
-    FLOOR_SIZE / 2.0, 0.0, FLOOR_SIZE / 2.0, NUM_TILE_WRAPS, NUM_TILE_WRAPS,
-    FLOOR_SIZE / 2.0, 0.0, -FLOOR_SIZE / 2.0, 0.0, NUM_TILE_WRAPS
+     FLOOR_SIZE / 2.0, 0.0,  FLOOR_SIZE / 2.0, NUM_TILE_WRAPS, NUM_TILE_WRAPS,
+     FLOOR_SIZE / 2.0, 0.0, -FLOOR_SIZE / 2.0, 0.0, NUM_TILE_WRAPS
 ];
 
 pub struct Floor {
@@ -25,7 +25,6 @@ pub struct Floor {
     pub texture_floor_diffuse: Texture,
     pub texture_floor_normal: Texture,
     pub texture_floor_spec: Texture,
-    // pub texture_shadow_map: Texture,
 }
 
 impl Floor {
@@ -42,10 +41,10 @@ impl Floor {
         let texture_floor_diffuse = Texture::new("assets/Models/Floor D.png", &texture_config).unwrap();
         let texture_floor_normal = Texture::new("assets/Models/Floor N.png", &texture_config).unwrap();
         let texture_floor_spec = Texture::new("assets/Models/Floor M.png", &texture_config).unwrap();
-        // let texture_shadow_map = Texture::new("assets/Models/Floor D.png", &texture_config).unwrap();
 
         let mut floor_vao: GLuint = 0;
         let mut floor_vbo: GLuint = 0;
+
         unsafe {
             gl::GenVertexArrays(1, &mut floor_vao);
             gl::GenBuffers(1, &mut floor_vbo);
@@ -69,7 +68,6 @@ impl Floor {
             texture_floor_diffuse,
             texture_floor_normal,
             texture_floor_spec,
-            // texture_shadow_map,
         }
     }
 

@@ -41,7 +41,9 @@ float ShadowCalculation(float bias, vec4 fragPosLightSpace, vec2 offset) {
 
 void main() {
   vec4 color = texture(texture_diffuse, TexCoord);
+
   if (useLight) {
+
     vec2 texelSize = 1.0 / textureSize(shadow_map, 0);
     vec3 lightDir = normalize(-directionLight.dir);
     vec3 normal = vec3(texture(texture_normal, TexCoord));
@@ -50,14 +52,17 @@ void main() {
     vec3 amb = ambient * vec3(texture(texture_diffuse, TexCoord));
     float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
     float shadow = 0.0;
+
     for (int x = -1; x <= 1; ++x) {
       for (int y = -1; y <= 1; ++y) {
         shadow += ShadowCalculation(bias, FragPosLightSpace, vec2(x, y) * texelSize);
       }
     }
-    shadow /= 9.0;
+
+    shadow /= 7.0;
     shadow *= 0.7;
-    color = 0.7* (1.0 - shadow) * vec4(directionLight.color, 1.0) * color * diff + vec4(amb, 1.0);
+    color = 0.7 * (1.0 - shadow) * vec4(directionLight.color, 1.0) * color * diff + vec4(amb, 1.0);
+
     if (useSpec) {
       vec3 normal = vec3(0.0, 1.0, 0.0);
       vec3 specLightDir = normalize(vec3(-3.0, 0.0, -1.0));
@@ -68,6 +73,7 @@ void main() {
       float spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
       color += str * spec * texture(texture_specular, TexCoord) * vec4(directionLight.color, 1.0);
     }
+
     if (usePointLight) {
       vec3 lightDir = normalize(pointLight.worldPos - FragWorldPos);
       vec3 normal = vec3(0.0, 1.0, 0.0);
@@ -76,13 +82,15 @@ void main() {
       float linear = 0.5;
       float constant = 0;
       float quadratic = 3;
-      float attenuation = 1.0 / (constant + linear * distance +
-               quadratic * (distance * distance));
+      float attenuation = 1.0 / (constant + linear * distance + quadratic * (distance * distance));
       vec3 diffuse  = pointLight.color  * diff * vec3(texture(texture_diffuse, TexCoord));
       diffuse *= attenuation;
+      // needs to have the opposite effect for good flash shadows
+      // color += vec4(diffuse.xyz, 1.0) * (1.0 - shadow * diff); // doesn't work
       color += vec4(diffuse.xyz, 1.0);
     }
   }
+
   FragColor = color;
 }
 
