@@ -19,8 +19,8 @@ pub struct BulletGroup {
 }
 
 impl BulletGroup {
-    pub fn new(start_index: usize, group_size: i32, time_to_live: f32) -> BulletGroup {
-        BulletGroup {
+    pub const fn new(start_index: usize, group_size: i32, time_to_live: f32) -> Self {
+        Self {
             start_index,
             group_size,
             time_to_live,
@@ -194,7 +194,7 @@ impl BulletStore {
         let texture_impact_sprite_sheet = Texture::new("angrygl_assets/bullet/impact_spritesheet_with_00.png", &texture_config).unwrap();
         let bullet_impact_spritesheet = SpriteSheet::new(texture_impact_sprite_sheet, 11, 0.05);
 
-        BulletStore {
+        Self {
             all_bullet_positions: Default::default(),
             all_bullet_quats: Default::default(),
             all_bullet_directions: Default::default(),
@@ -260,14 +260,16 @@ impl BulletStore {
                 let y_quat = mid_dir_quat
                     * Quat::from_axis_angle(
                         vec3(0.0, 1.0, 0.0),
-                        ROTATION_PER_BULLET * ((i - spread_amount) as f32 / 2.0) + spread_centering + noise,
+                        // ROTATION_PER_BULLET * ((i - spread_amount) as f32 / 2.0) + spread_centering + noise,
+                        ROTATION_PER_BULLET.mul_add((i - spread_amount) as f32 / 2.0, spread_centering + noise),
                     );
 
                 for j in 0..spread_amount {
                     let rot_quat = y_quat
                         * Quat::from_axis_angle(
                             vec3(1.0, 0.0, 0.0),
-                            ROTATION_PER_BULLET * ((j - spread_amount) as f32 / 2.0) + spread_centering + noise,
+                            // ROTATION_PER_BULLET * ((j - spread_amount) as f32 / 2.0) + spread_centering + noise,
+                            ROTATION_PER_BULLET.mul_add((j - spread_amount) as f32 / 2.0, spread_centering + noise),
                         );
 
                     let dir_glam = rot_quat.mul_vec3(CANONICAL_DIR * -1.0);

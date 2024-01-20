@@ -11,8 +11,8 @@ pub struct Aabb {
 }
 
 impl Aabb {
-    pub fn new() -> Self {
-        Aabb {
+    pub const fn new() -> Self {
+        Self {
             x_min: f32::MAX,
             x_max: f32::MIN,
             y_min: f32::MAX,

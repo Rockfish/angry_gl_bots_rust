@@ -10,7 +10,7 @@ pub struct TextureCache {
 
 impl TextureCache {
     pub fn new() -> Self {
-        TextureCache { texture_cache: HashMap::new() }
+        Self { texture_cache: HashMap::new() }
     }
 
     pub fn get_or_load_texture(&mut self, texture_path: impl Into<OsString>, texture_config: &TextureConfig) -> Result<Rc<Texture>, Error> {

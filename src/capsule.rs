@@ -4,7 +4,7 @@ pub struct Capsule {
 }
 
 impl Capsule {
-    pub fn new(height: f32, radius: f32) -> Self {
-        Capsule { height, radius }
+    pub const fn new(height: f32, radius: f32) -> Self {
+        Self { height, radius }
     }
 }

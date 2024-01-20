@@ -48,7 +48,7 @@ pub struct PlayerAnimations {
 
 impl PlayerAnimations {
     pub fn new() -> Self {
-        PlayerAnimations {
+        Self {
             idle: Rc::new(AnimationClip::new(55.0, 130.0, AnimationRepeat::Forever)),
             right: Rc::new(AnimationClip::new(184.0, 204.0, AnimationRepeat::Forever)),
             forward: Rc::new(AnimationClip::new(134.0, 154.0, AnimationRepeat::Forever)),
@@ -84,7 +84,7 @@ pub struct AnimationWeights {
 
 impl Default for AnimationWeights {
     fn default() -> Self {
-        AnimationWeights {
+        Self {
             last_anim_time: 0.0,
             prev_idle_weight: 0.0,
             prev_right_weight: 0.0,
@@ -96,7 +96,7 @@ impl Default for AnimationWeights {
 }
 
 impl Player {
-    pub fn new() -> Player {
+    pub fn new() -> Self {
         let player_model = ModelBuilder::new("player", "assets/Models/Player/Player.fbx")
             .add_texture("Player", TextureType::Diffuse, "Textures/Player_D.tga")
             .add_texture("Player", TextureType::Specular, "Textures/Player_M.tga")
@@ -119,7 +119,7 @@ impl Player {
 
         let animation_name = Rc::from("idle");
 
-        let player = Player {
+        let player = Self {
             model: player_model,
             last_fire_time: 0.0,
             is_trying_to_fire: false,
@@ -176,7 +176,7 @@ impl Player {
         self.model.render(shader);
     }
 
-    pub fn update(&mut self, state: &mut State, aim_theta: f32) {
+    pub fn update(&mut self, state: &State, aim_theta: f32) {
         let weight_animations = self.update_animation_weights(self.direction, aim_theta, state.frame_time);
         self.model.play_weight_animations(weight_animations.as_slice(), state.frame_time);
     }

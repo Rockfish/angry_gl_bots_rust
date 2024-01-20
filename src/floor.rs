@@ -62,7 +62,7 @@ impl Floor {
             gl::EnableVertexAttribArray(1);
         }
 
-        Floor {
+        Self {
             floor_vao,
             floor_vbo,
             texture_floor_diffuse,

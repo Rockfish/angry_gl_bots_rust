@@ -17,7 +17,7 @@ impl MuzzleFlash {
         let texture_muzzle_flash_sprite_sheet = Texture::new("angrygl_assets/Player/muzzle_spritesheet.png", &texture_config).unwrap();
         let muzzle_flash_impact_spritesheet = SpriteSheet::new(texture_muzzle_flash_sprite_sheet, 6, 0.03);
 
-        MuzzleFlash {
+        Self {
             unit_square_vao,
             muzzle_flash_impact_spritesheet,
             muzzle_flash_sprites_age: vec![],

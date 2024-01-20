@@ -16,8 +16,8 @@ pub struct Enemy {
 }
 
 impl Enemy {
-    pub fn new(position: Vec3, dir: Vec3) -> Self {
-        Enemy { position, dir, is_alive: true }
+    pub const fn new(position: Vec3, dir: Vec3) -> Self {
+        Self { position, dir, is_alive: true }
     }
 }
 
@@ -34,7 +34,7 @@ pub struct EnemySystem {
 impl EnemySystem {
     pub fn new() -> Self {
         let enemy_model = ModelBuilder::new("enemy", "assets/Models/Eeldog/EelDog.FBX").build().unwrap();
-        EnemySystem {
+        Self {
             count_down: ENEMY_SPAWN_INTERVAL,
             monster_y: MONSTER_Y,
             enemy_model,
@@ -53,8 +53,10 @@ impl EnemySystem {
 
     pub fn spawn_enemy(&mut self, state: &mut State) {
         let theta = (rand_float() * 360.0).to_radians();
-        let x = state.player.borrow().position.x + theta.sin() * SPAWN_RADIUS;
-        let z = state.player.borrow().position.z + theta.cos() * SPAWN_RADIUS;
+        // let x = state.player.borrow().position.x + theta.sin() * SPAWN_RADIUS;
+        // let z = state.player.borrow().position.z + theta.cos() * SPAWN_RADIUS;
+        let x = theta.sin().mul_add(SPAWN_RADIUS, state.player.borrow().position.x);
+        let z = theta.cos().mul_add(SPAWN_RADIUS, state.player.borrow().position.z);
         state.enemies.push(Enemy::new(vec3(x, self.monster_y, z), vec3(0.0, 0.0, 1.0)));
     }
 

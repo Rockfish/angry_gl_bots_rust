@@ -132,6 +132,7 @@ fn joystick_callback(jid: glfw::JoystickId, event: glfw::JoystickEvent) {
     info!("joystick: {:?}  event: {:?}", jid, event);
 }
 
+#[allow(clippy::cognitive_complexity)]
 fn main() {
     pretty_env_logger::init();
 
@@ -459,7 +460,7 @@ fn main() {
         }
 
         // Update Player
-        player.borrow_mut().update(&mut state, aim_theta);
+        player.borrow_mut().update(&state, aim_theta);
 
         let mut use_point_light = false;
         let mut muzzle_world_position = Vec3::default();

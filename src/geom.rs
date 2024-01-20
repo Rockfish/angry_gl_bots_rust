@@ -79,22 +79,14 @@ pub fn distance_between_line_segments(a0: &Vec3, a1: &Vec3, b0: &Vec3, b1: &Vec3
     // Clamp projection A
     if t0 < 0.0 || t0 > mag_a {
         let mut dot = b.dot(p_a - *b0);
-        if dot < 0.0 {
-            dot = 0.0;
-        } else if dot > mag_b {
-            dot = mag_b;
-        }
+        dot = dot.clamp(0.0, mag_b);
         p_b = *b0 + (b * dot);
     }
 
     // Clamp projection B
     if t1 < 0.0 || t1 > mag_b {
         let mut dot = a.dot(p_b - *a0);
-        if dot < 0.0 {
-            dot = 0.0;
-        } else if dot > mag_a {
-            dot = mag_a;
-        }
+        dot = dot.clamp(0.0, mag_a);
         p_a = *a0 + (a * dot);
     }
 

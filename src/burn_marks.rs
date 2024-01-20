@@ -22,7 +22,7 @@ impl BurnMarks {
         let texture_config = TextureConfig::new().set_wrap(TextureWrap::Repeat);
         let mark_texture = Texture::new("angrygl_assets/bullet/burn_mark.png", &texture_config).unwrap();
 
-        BurnMarks {
+        Self {
             unit_square_vao,
             mark_texture,
             marks: vec![],

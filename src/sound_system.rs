@@ -21,7 +21,7 @@ use std::sync::Arc;
 /// This is fine when initializing this once (as is default when adding this plugin),
 /// since the memory cost will be the same.
 /// However, repeatedly inserting this resource into the app will **leak more memory**.
-pub(crate) struct AudioOutput {
+pub struct AudioOutput {
     pub stream_handle: Option<OutputStreamHandle>,
 }
 
@@ -54,13 +54,13 @@ pub struct AudioSource {
 }
 
 impl AudioSource {
-    fn new(filename: &str) -> AudioSource {
+    fn new(filename: &str) -> Self {
         let mut file = BufReader::new(File::open(filename).unwrap());
 
         let mut bytes = Vec::new();
         file.read_to_end(&mut bytes).unwrap();
 
-        AudioSource { bytes: bytes.into() }
+        Self { bytes: bytes.into() }
     }
 }
 
@@ -73,7 +73,7 @@ pub struct SoundSystem {
 }
 
 impl SoundSystem {
-    pub fn new() -> SoundSystem {
+    pub fn new() -> Self {
         let audio_output = AudioOutput::default();
         let bullet_sink = Sink::try_new(audio_output.stream_handle.as_ref().unwrap()).unwrap();
         let explosion_sink = Sink::try_new(audio_output.stream_handle.as_ref().unwrap()).unwrap();
@@ -84,7 +84,7 @@ impl SoundSystem {
         let player_shooting_source = AudioSource::new("assets/Audio/Player_SFX/player_shooting_one.wav");
         let enemy_destroyed_source = AudioSource::new("assets/Audio/Enemy_SFX/enemy_Spider_DestroyedExplosion.wav");
 
-        SoundSystem {
+        Self {
             audio_output,
             bullet_sink,
             explosion_sink,

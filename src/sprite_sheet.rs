@@ -9,8 +9,8 @@ pub struct SpriteSheet {
 }
 
 impl SpriteSheet {
-    pub fn new(texture_unit: Texture, num_columns: i32, time_per_sprite: f32) -> Self {
-        SpriteSheet {
+    pub const fn new(texture_unit: Texture, num_columns: i32, time_per_sprite: f32) -> Self {
+        Self {
             texture: texture_unit,
             num_columns,
             time_per_sprite,
@@ -24,7 +24,7 @@ pub struct SpriteSheetSprite {
 }
 
 impl SpriteSheetSprite {
-    pub fn new(world_position: Vec3) -> Self {
-        SpriteSheetSprite { world_position, age: 0.0 }
+    pub const fn new(world_position: Vec3) -> Self {
+        Self { world_position, age: 0.0 }
     }
 }
