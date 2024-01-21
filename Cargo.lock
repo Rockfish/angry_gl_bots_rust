@@ -80,6 +80,7 @@ dependencies = [
  "ordered-float",
  "pretty_env_logger",
  "quanta",
+ "rayon",
  "rodio",
  "small_gl_core",
  "tracing",

@@ -10,6 +10,7 @@
 
 mod aabb;
 mod bullets;
+mod bullets_parallel;
 mod burn_marks;
 mod capsule;
 mod enemy;
@@ -25,7 +26,8 @@ mod texture_cache;
 
 extern crate glfw;
 
-use crate::bullets::BulletStore;
+// use crate::bullets::BulletStore;
+use crate::bullets_parallel::BulletStore;
 use crate::burn_marks::BurnMarks;
 use crate::enemy::{Enemy, EnemySystem};
 use crate::floor::Floor;
@@ -66,7 +68,7 @@ const VIEW_PORT_HEIGHT: i32 = 1000;
 // Player
 const FIRE_INTERVAL: f32 = 0.1;
 // seconds
-const SPREAD_AMOUNT: i32 = 20;
+const SPREAD_AMOUNT: i32 = 200;
 
 const PLAYER_COLLISION_RADIUS: f32 = 0.35;
 
@@ -444,11 +446,11 @@ fn main() {
         let muzzle_transform = player.borrow().get_muzzle_position(&player_transform);
 
         if player.borrow().is_alive && player.borrow().is_trying_to_fire && (player.borrow().last_fire_time + FIRE_INTERVAL) < state.frame_time {
-            bullet_store.create_bullets(dx, dz, &muzzle_transform, SPREAD_AMOUNT);
             player.borrow_mut().last_fire_time = state.frame_time;
-            muzzle_flash.add_flash();
-
-            state.sound_system.play_player_shooting();
+            if bullet_store.create_bullets(dx, dz, &muzzle_transform, SPREAD_AMOUNT) {
+                muzzle_flash.add_flash();
+                state.sound_system.play_player_shooting();
+            }
         }
 
         muzzle_flash.update(state.delta_time);
