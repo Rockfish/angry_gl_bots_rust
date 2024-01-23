@@ -545,21 +545,21 @@ pub fn partial_hamilton_product(q1: &Quat, q2: &Quat) -> Vec3 {
 
 // -- from ChatGPT --
 fn hamilton_product_quat_vec(quat: &Quat, vec: &Vec3) -> Quat {
-    Quat {
-        x: quat.w * vec.x + quat.y * vec.z - quat.z * vec.y,
-        y: quat.w * vec.y - quat.x * vec.z + quat.z * vec.x,
-        z: quat.w * vec.z + quat.x * vec.y - quat.y * vec.x,
-        w: -quat.x * vec.x - quat.y * vec.y - quat.z * vec.z,
-    }
+    Quat::from_xyzw(
+         quat.w * vec.x + quat.y * vec.z - quat.z * vec.y,
+         quat.w * vec.y - quat.x * vec.z + quat.z * vec.x,
+         quat.w * vec.z + quat.x * vec.y - quat.y * vec.x,
+         -quat.x * vec.x - quat.y * vec.y - quat.z * vec.z,
+    )
 }
 
 fn hamilton_product_quat_quat(first: Quat, other: &Quat) -> Quat {
-    Quat {
-        x: first.w * other.x + first.x * other.w + first.y * other.z - first.z * other.y,
-        y: first.w * other.y - first.x * other.z + first.y * other.w + first.z * other.x,
-        z: first.w * other.z + first.x * other.y - first.y * other.x + first.z * other.w,
-        w: first.w * other.w - first.x * other.x - first.y * other.y - first.z * other.z,
-    }
+    Quat::from_xyzw(
+        first.w * other.x + first.x * other.w + first.y * other.z - first.z * other.y,
+        first.w * other.y - first.x * other.z + first.y * other.w + first.z * other.x,
+        first.w * other.z + first.x * other.y - first.y * other.x + first.z * other.w,
+        first.w * other.w - first.x * other.x - first.y * other.y - first.z * other.z,
+    )
 }
 
 #[cfg(test)]

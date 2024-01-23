@@ -13,7 +13,7 @@ log = "0.4.20"
 #russimp = "2.0.6"
 #small_gl_core = { git = "https://github.com/Rockfish/small_gl_core.git" }
 small_gl_core = { path = "../small_gl_core" }
-itertools = "0.12.0"
+#itertools = "0.12.05"
 ordered-float = "4.2.0"
 once_cell = "1.19.0"
 rodio = { version = "0.17.3", features = ["wav"] }
